@@ -8,3 +8,5 @@ hosts.yaml
 .env
 docs/
 testAccount.json
+
+cargo.lock
