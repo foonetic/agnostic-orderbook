@@ -1,0 +1,22 @@
+name: Rust
+
+on: push
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+
+    steps:
+    - uses: actions/checkout@v2
+    - name: Build and lint
+      run: cargo clippy --verbose -- -D warnings
+    - name: Run tests
+      run: cargo test --verbose
+
+defaults:
+  run:
+    working-directory: program
