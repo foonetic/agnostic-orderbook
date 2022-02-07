@@ -56,7 +56,7 @@ pub struct Accounts<'a, T> {
     pub asks: &'a T,
 }
 
-impl<'a, 'b: 'a> Accounts<'a, AccountInfo<'b>> {
+impl<'a, 'b> Accounts<'a, AccountInfo<'b>> {
     pub(crate) fn parse(accounts: &'a [AccountInfo<'b>]) -> Result<Self, ProgramError> {
         let accounts_iter = &mut accounts.iter();
 
@@ -83,9 +83,9 @@ impl<'a, 'b: 'a> Accounts<'a, AccountInfo<'b>> {
 }
 
 /// Apply the create_market instruction to the provided accounts
-pub fn process<'a, 'b: 'a>(
+pub fn process(
     program_id: &Pubkey,
-    accounts: Accounts<'a, AccountInfo<'b>>,
+    accounts: Accounts<AccountInfo>,
     params: Params,
 ) -> ProgramResult {
     accounts.perform_checks(program_id)?;
