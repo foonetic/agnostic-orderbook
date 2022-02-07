@@ -70,9 +70,9 @@ impl<'a, 'b: 'a> Accounts<'a, AccountInfo<'b>> {
     }
 }
 /// Apply the close_market instruction to the provided accounts
-pub fn process<'a, 'b: 'a>(
+pub fn process(
     program_id: &Pubkey,
-    accounts: Accounts<'a, AccountInfo<'b>>,
+    accounts: Accounts<AccountInfo>,
     _params: Params,
 ) -> ProgramResult {
     accounts.perform_checks(program_id)?;

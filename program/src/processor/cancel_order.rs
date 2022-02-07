@@ -80,9 +80,9 @@ impl<'a, 'b: 'a> Accounts<'a, AccountInfo<'b>> {
     }
 }
 /// Apply the cancel_order instruction to the provided accounts
-pub fn process<'a, 'b: 'a>(
+pub fn process(
     program_id: &Pubkey,
-    accounts: Accounts<'a, AccountInfo<'b>>,
+    accounts: Accounts<AccountInfo>,
     params: Params,
 ) -> ProgramResult {
     accounts.perform_checks(program_id)?;
