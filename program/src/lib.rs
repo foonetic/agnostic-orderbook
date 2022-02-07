@@ -1,4 +1,4 @@
-#![warn(missing_docs)]
+// #![warn(missing_docs)]
 /*!
 Orderbook program which can be used with generic assets.
 

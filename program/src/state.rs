@@ -298,7 +298,7 @@ impl<'a> EventQueue<'a> {
     /// Initialize a new EventQueue object.
     ///
     /// Within a CPI context, the account parameter can be supplied through
-    /// ```no_run
+    /// ```ignore
     /// use std::rc::Rc;
     /// let a: AccountInfo;
     ///
