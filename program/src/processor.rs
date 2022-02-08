@@ -1,8 +1,8 @@
 use borsh::BorshDeserialize;
 use num_traits::FromPrimitive;
 use solana_program::{
-    account_info::AccountInfo, entrypoint::ProgramResult, msg, program_error::ProgramError,
-    pubkey::Pubkey,
+    account_info::AccountInfo, entrypoint::ProgramResult, log::sol_log_compute_units, msg,
+    program_error::ProgramError, pubkey::Pubkey,
 };
 
 use crate::instruction::AgnosticOrderbookInstruction;
