@@ -5,6 +5,7 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
+    log::sol_log_compute_units,
     msg,
     program_error::ProgramError,
     pubkey::Pubkey,
@@ -122,17 +123,23 @@ pub fn process(
 
     let callback_info_len = market_state.callback_info_len as usize;
 
+    msg!("Creating order book");
+    sol_log_compute_units();
     let mut order_book = OrderBookState::new_safe(
         accounts.bids,
         accounts.asks,
         market_state.callback_info_len as usize,
         market_state.callback_id_len as usize,
     )?;
+    sol_log_compute_units();
 
     if params.callback_info.len() != callback_info_len {
         msg!("Invalid callback information");
         return Err(ProgramError::InvalidArgument);
     }
+
+    msg!("Creating EventQueue");
+    sol_log_compute_units();
 
     let header = {
         let mut event_queue_data: &[u8] =
@@ -142,9 +149,13 @@ pub fn process(
             .check()?
     };
     let mut event_queue = EventQueue::new_safe(header, accounts.event_queue, callback_info_len)?;
+    sol_log_compute_units();
 
+    msg!("Creating new order");
+    sol_log_compute_units();
     let order_summary =
         order_book.new_order(params, &mut event_queue, market_state.min_base_order_size)?;
+    sol_log_compute_units();
     msg!("Order summary : {:?}", order_summary);
     event_queue.write_to_register(order_summary);
 
@@ -153,7 +164,10 @@ pub fn process(
         .header
         .serialize(&mut event_queue_header_data)
         .unwrap();
+    msg!("Committing changes");
+    sol_log_compute_units();
     order_book.commit_changes();
+    sol_log_compute_units();
 
     //Verify that fees were transfered. Fees are expected to be transfered by the caller program in order
     // to reduce the CPI call stack depth.
