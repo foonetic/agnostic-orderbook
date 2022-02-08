@@ -186,38 +186,34 @@ struct SlabHeader {
 pub const SLAB_HEADER_LEN: usize = 97;
 pub const PADDED_SLAB_HEADER_LEN: usize = SLAB_HEADER_LEN + 7;
 
-pub struct Slab<'a, 'b>
-where
-    'b: 'a,
-{
+pub struct Slab<'a> {
     header: SlabHeader,
-    pub buffer: RefMut<'a, &'b mut [u8]>,
+    pub buffer: &'a mut [u8],
     pub callback_info_len: usize,
 }
 
 // Data access methods
-impl<'a, 'b> Slab<'a, 'b> {
+impl<'a> Slab<'a> {
     pub fn check(&self, side: Side) -> bool {
         match side {
             Side::Bid => self.header.account_tag == AccountTag::Bids,
             Side::Ask => self.header.account_tag == AccountTag::Asks,
         }
     }
-    pub fn new_from_acc_info(acc_info: &'a AccountInfo<'b>, callback_info_len: usize) -> Self
-    where
-        'b: 'a,
-    {
+    pub fn new_from_acc_info(acc_info: &AccountInfo<'a>, callback_info_len: usize) -> Self {
         let header = SlabHeader::deserialize(&mut (&acc_info.data.borrow() as &[u8])).unwrap();
+        // FIXME: is this ok....? Do we need to `swap()` with something.....?
+        let buffer: &'a mut [u8] = acc_info.data.take();
         // assert_eq!(len_without_header % slot_size, 0);
         Self {
             // FIXME (leina): unwrap
-            buffer: acc_info.try_borrow_mut_data().unwrap(),
+            buffer,
             callback_info_len,
             header,
         }
     }
 
-    pub fn new(buffer: RefMut<'a, &'b mut [u8]>, callback_info_len: usize) -> Self {
+    pub fn new(buffer: &'a mut [u8], callback_info_len: usize) -> Self {
         let header = SlabHeader::deserialize(&mut (&buffer as &[u8])).unwrap();
         Self {
             header,
@@ -275,7 +271,7 @@ impl<'a, 'b> Slab<'a, 'b> {
 }
 
 // Tree nodes manipulation methods
-impl<'a, 'b> Slab<'a, 'b> {
+impl<'a> Slab<'a> {
     fn capacity(&self) -> u64 {
         ((self.buffer.len() - PADDED_SLAB_HEADER_LEN) / (2 * SLOT_SIZE + self.callback_info_len))
             as u64
@@ -522,7 +518,7 @@ impl<'a, 'b> Slab<'a, 'b> {
 }
 
 // Critbit tree walks
-impl<'a, 'b> Slab<'a, 'b> {
+impl<'a> Slab<'a> {
     pub fn root(&self) -> Option<NodeHandle> {
         if self.header.leaf_count == 0 {
             return None;
@@ -919,8 +915,8 @@ impl CallbackInfo for Pubkey {
 mod tests {
 
     use super::*;
-    use std::cell::RefCell;
     use rand::prelude::*;
+    use std::cell::RefCell;
 
     // #[test]
     // fn test_node_serialization() {
@@ -945,11 +941,11 @@ mod tests {
         for trial in 0..10u64 {
             let mut bytes = vec![0u8; 80_000];
             let order_capacity = (bytes.len() - PADDED_SLAB_HEADER_LEN) / (SLOT_SIZE * 2 + 32);
-            let slab_data = RefCell::new(&mut bytes[..]);
+            let slab_data = &mut bytes[..];
 
             let callback_memory_offset = PADDED_SLAB_HEADER_LEN + 2 * order_capacity * SLOT_SIZE;
             let mut slab = Slab {
-                buffer: slab_data.borrow_mut(),
+                buffer: slab_data,
                 callback_info_len: 32,
                 header: SlabHeader {
                     account_tag: AccountTag::Asks,
@@ -1041,9 +1037,9 @@ mod tests {
         let order_capacity = (bytes.len() - PADDED_SLAB_HEADER_LEN) / (SLOT_SIZE * 2 + 32);
 
         let callback_memory_offset = PADDED_SLAB_HEADER_LEN + 2 * order_capacity * SLOT_SIZE;
-        let slab_data = RefCell::new(&mut bytes[..]);
+        let slab_data = &mut bytes[..];
         let mut slab = Slab {
-            buffer: slab_data.borrow_mut(),
+            buffer: slab_data,
             callback_info_len: 32,
             header: SlabHeader {
                 account_tag: AccountTag::Asks,
