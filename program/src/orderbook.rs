@@ -29,22 +29,16 @@ pub struct OrderSummary {
 /// The serialized size of an OrderSummary object.
 pub const ORDER_SUMMARY_SIZE: u32 = 41;
 
-pub(crate) struct OrderBookState<'a, 'b>
-where
-    'b: 'a,
-{
-    bids: Slab<'a, 'b>,
-    asks: Slab<'a, 'b>,
+pub(crate) struct OrderBookState<'ob> {
+    bids: Slab<'ob>,
+    asks: Slab<'ob>,
     callback_id_len: usize,
 }
 
-impl<'a, 'b> OrderBookState<'a, 'b>
-where
-    'b: 'a,
-{
+impl<'ob> OrderBookState<'ob> {
     pub(crate) fn new_safe(
-        bids_account: &'a AccountInfo<'b>,
-        asks_account: &'a AccountInfo<'b>,
+        bids_account: &AccountInfo<'ob>,
+        asks_account: &AccountInfo<'ob>,
         callback_info_len: usize,
         callback_id_len: usize,
     ) -> Result<Self, ProgramError> {
@@ -79,7 +73,7 @@ where
         (best_bid_price, best_ask_price)
     }
 
-    pub fn get_tree(&mut self, side: Side) -> &mut Slab<'a, 'b> {
+    pub fn get_tree(&mut self, side: Side) -> &mut Slab<'ob> {
         match side {
             Side::Bid => &mut self.bids,
             Side::Ask => &mut self.asks,
