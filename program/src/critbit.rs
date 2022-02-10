@@ -6,7 +6,6 @@ use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use solana_program::account_info::AccountInfo;
 use solana_program::pubkey::Pubkey;
-use std::cell::RefMut;
 use std::convert::identity;
 use std::convert::TryInto;
 // A Slab contains the data for a slab header and an array of nodes of a critbit tree
@@ -194,6 +193,10 @@ pub struct Slab<'a> {
 
 // Data access methods
 impl<'a> Slab<'a> {
+    pub fn replace_acc_info(self, acc_info: &AccountInfo<'a>) {
+        acc_info.data.replace(self.buffer);
+    }
+
     pub fn check(&self, side: Side) -> bool {
         match side {
             Side::Bid => self.header.account_tag == AccountTag::Bids,
@@ -214,7 +217,7 @@ impl<'a> Slab<'a> {
     }
 
     pub fn new(buffer: &'a mut [u8], callback_info_len: usize) -> Self {
-        let header = SlabHeader::deserialize(&mut (&buffer as &[u8])).unwrap();
+        let header = SlabHeader::deserialize(&mut (buffer as &[u8])).unwrap();
         Self {
             header,
             // FIXME (leina): unwrap
@@ -917,7 +920,6 @@ mod tests {
 
     use super::*;
     use rand::prelude::*;
-    use std::cell::RefCell;
 
     // #[test]
     // fn test_node_serialization() {

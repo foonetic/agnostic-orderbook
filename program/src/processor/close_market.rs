@@ -121,6 +121,8 @@ pub fn process(
     **asks_lamports = 0;
     **event_queue_lamports = 0;
 
+    orderbook_state.cleanup(accounts.bids, accounts.asks);
+
     Ok(())
 }
 
