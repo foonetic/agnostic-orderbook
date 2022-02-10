@@ -1,3 +1,4 @@
+
 use crate::{
     critbit::{LeafNode, Node, NodeHandle, Slab},
     error::AoError,
@@ -53,6 +54,12 @@ impl<'ob> OrderBookState<'ob> {
             callback_id_len,
         })
     }
+
+    pub fn cleanup(self, bids_account: &AccountInfo<'ob>, asks_account: &AccountInfo<'ob>) {
+        self.bids.replace_acc_info(bids_account);
+        self.asks.replace_acc_info(asks_account);
+    }
+
     pub fn find_bbo(&self, side: Side) -> Option<NodeHandle> {
         match side {
             Side::Bid => self.bids.find_max(),
