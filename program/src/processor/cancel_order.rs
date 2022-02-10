@@ -124,6 +124,7 @@ pub fn process(
     event_queue.write_to_register(order_summary);
 
     order_book.commit_changes();
+    order_book.cleanup(accounts.bids, accounts.asks);
 
     Ok(())
 }
