@@ -124,7 +124,7 @@ pub fn process(
 
     msg!("New Order: Creating order book");
     // sol_log_compute_units();
-    let mut order_book = OrderBookState::new_safe(
+    let mut order_book = OrderBookState::new(
         accounts.bids,
         accounts.asks,
         market_state.callback_info_len as usize,
@@ -180,7 +180,7 @@ pub fn process(
         return Err(AoError::FeeNotPayed.into());
     }
     market_state.fee_budget = accounts.market.lamports() - market_state.initial_lamports;
-    order_book.replace(accounts.bids, accounts.asks);
+    order_book.release(accounts.bids, accounts.asks);
 
     Ok(())
 }

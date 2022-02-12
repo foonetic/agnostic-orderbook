@@ -92,7 +92,7 @@ pub fn process(
 
     let callback_info_len = market_state.callback_info_len as usize;
 
-    let mut order_book = OrderBookState::new_safe(
+    let mut order_book = OrderBookState::new(
         accounts.bids,
         accounts.asks,
         market_state.callback_info_len as usize,
@@ -124,7 +124,7 @@ pub fn process(
     event_queue.write_to_register(order_summary);
 
     order_book.commit_changes();
-    order_book.replace(accounts.bids, accounts.asks);
+    order_book.release(accounts.bids, accounts.asks);
 
     Ok(())
 }
