@@ -1,14 +1,17 @@
-use crate::error::AoError::FailedToDeserializeSlabHeader;
-use crate::error::{AoError, AoResult};
-use crate::state::{AccountTag, Side};
+use std::convert::identity;
+use std::convert::TryInto;
+
 use borsh::{BorshDeserialize, BorshSerialize};
-use bytemuck::{try_from_bytes, try_from_bytes_mut, Pod, Zeroable};
+use bytemuck::{Pod, try_from_bytes, try_from_bytes_mut, Zeroable};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use solana_program::account_info::AccountInfo;
 use solana_program::pubkey::Pubkey;
-use std::convert::identity;
-use std::convert::TryInto;
+
+use crate::error::{AoError, AoResult};
+use crate::error::AoError::FailedToDeserializeSlabHeader;
+use crate::state::{AccountTag};
+
 // A Slab contains the data for a slab header and an array of nodes of a critbit tree
 // whose leafs contain the data referencing an order of the orderbook.
 
@@ -907,11 +910,11 @@ impl CallbackInfo for Pubkey {
 
 #[cfg(test)]
 mod tests {
-
-    use super::*;
     use rand::prelude::*;
 
-    // #[test]
+    use super::*;
+
+// #[test]
     // fn test_node_serialization() {
     //     let mut rng = StdRng::seed_from_u64(42);
     //     let mut bytes = [0u8; 100];
