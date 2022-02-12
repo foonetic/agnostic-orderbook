@@ -193,7 +193,7 @@ pub struct Slab<'a> {
 
 // Data access methods
 impl<'a> Slab<'a> {
-    pub fn replace_acc_info(self, acc_info: &AccountInfo<'a>) {
+    pub fn replace(self, acc_info: &AccountInfo<'a>) {
         acc_info.data.replace(self.buffer);
     }
 
@@ -203,6 +203,7 @@ impl<'a> Slab<'a> {
             Side::Ask => self.header.account_tag == AccountTag::Asks,
         }
     }
+
     pub fn new_from_acc_info(acc_info: &AccountInfo<'a>, callback_info_len: usize) -> Self {
         let header = SlabHeader::deserialize(&mut (&acc_info.data.borrow() as &[u8])).unwrap();
         // FIXME: is this ok....? Do we need to `swap()` with something.....?
