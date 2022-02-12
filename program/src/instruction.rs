@@ -4,6 +4,7 @@ use num_derive::FromPrimitive;
 use solana_program::{instruction::Instruction, pubkey::Pubkey};
 
 pub use crate::processor::{cancel_order, close_market, consume_events, create_market, new_order};
+
 #[derive(BorshDeserialize, BorshSerialize, FromPrimitive)]
 /// Describes all possible instructions and their required accounts
 pub enum AgnosticOrderbookInstruction {

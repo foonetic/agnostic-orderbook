@@ -73,6 +73,13 @@ impl PrintProgramError for AoError {
             AoError::IllegalMsrmOwner => {
                 msg!("Error: Illegal MSRM token account owner")
             }
+            AoError::WrongAccountTag => {
+                msg!("Error: Wrong account tag")
+            }
+
+            AoError::FailedToDeserializeSlabHeader => {
+                msg!("Error: Failed to deserialize slab header")
+            }
         }
     }
 }
