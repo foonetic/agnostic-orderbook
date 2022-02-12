@@ -1,9 +1,13 @@
 use borsh::BorshDeserialize;
-use num_traits::FromPrimitive;
 use solana_program::{
-    account_info::AccountInfo, entrypoint::ProgramResult, msg,
-    program_error::ProgramError, pubkey::Pubkey,
+    account_info::AccountInfo, entrypoint::ProgramResult, msg, program_error::ProgramError,
+    pubkey::Pubkey,
 };
+
+use aob::params::{
+    CancelOrderParams, CloseMarketParams, ConsumeEventsParams, CreateMarketParams, NewOrderParams,
+};
+use num_traits::FromPrimitive;
 
 use crate::instruction::AgnosticOrderbookInstruction;
 
@@ -38,35 +42,35 @@ impl Processor {
             AgnosticOrderbookInstruction::CreateMarket => {
                 msg!("Instruction: Create Market");
                 let accounts = create_market::Accounts::parse(accounts)?;
-                let params = create_market::Params::try_from_slice(instruction_data)
+                let params = CreateMarketParams::try_from_slice(instruction_data)
                     .map_err(|_| ProgramError::InvalidInstructionData)?;
                 create_market::process(program_id, accounts, params)?;
             }
             AgnosticOrderbookInstruction::NewOrder => {
                 msg!("Instruction: New Order");
                 let accounts = new_order::Accounts::parse(accounts)?;
-                let params = new_order::Params::try_from_slice(instruction_data)
+                let params = NewOrderParams::try_from_slice(instruction_data)
                     .map_err(|_| ProgramError::InvalidInstructionData)?;
                 new_order::process(program_id, accounts, params)?;
             }
             AgnosticOrderbookInstruction::ConsumeEvents => {
                 msg!("Instruction: Consume Events");
                 let accounts = consume_events::Accounts::parse(accounts)?;
-                let params = consume_events::Params::try_from_slice(instruction_data)
+                let params = ConsumeEventsParams::try_from_slice(instruction_data)
                     .map_err(|_| ProgramError::InvalidInstructionData)?;
                 consume_events::process(program_id, accounts, params)?;
             }
             AgnosticOrderbookInstruction::CancelOrder => {
                 msg!("Instruction: Cancel Order");
                 let accounts = cancel_order::Accounts::parse(accounts)?;
-                let params = cancel_order::Params::try_from_slice(instruction_data)
+                let params = CancelOrderParams::try_from_slice(instruction_data)
                     .map_err(|_| ProgramError::InvalidInstructionData)?;
                 cancel_order::process(program_id, accounts, params)?;
             }
             AgnosticOrderbookInstruction::CloseMarket => {
                 msg!("Instruction: Close Market");
                 let accounts = close_market::Accounts::parse(accounts)?;
-                close_market::process(program_id, accounts, close_market::Params {})?;
+                close_market::process(program_id, accounts, CloseMarketParams {})?;
             }
         }
         Ok(())

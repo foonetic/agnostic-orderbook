@@ -1,7 +1,7 @@
 //! Cancel an existing order in the orderbook.
 
-use bonfida_utils::{BorshSize, InstructionsAccount};
-use borsh::{BorshDeserialize, BorshSerialize};
+use bonfida_utils::InstructionsAccount;
+use borsh::BorshDeserialize;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -9,22 +9,15 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use crate::{
+use aob::{
     error::AoError,
     orderbook::{OrderBookState, OrderSummary},
+    params::CancelOrderParams,
     state::{
         get_side_from_order_id, EventQueue, EventQueueHeader, MarketState, EVENT_QUEUE_HEADER_LEN,
     },
     utils::{check_account_key, check_account_owner, check_signer, fp32_mul},
 };
-#[derive(BorshDeserialize, BorshSerialize, Clone, BorshSize)]
-/**
-The required arguments for a cancel_order instruction.
-*/
-pub struct Params {
-    /// The order id is a unique identifier for a particular order
-    pub order_id: u128,
-}
 
 /// The required accounts for a cancel_order instruction.
 #[derive(InstructionsAccount)]
@@ -83,7 +76,7 @@ impl<'a, 'b: 'a> Accounts<'a, AccountInfo<'b>> {
 pub fn process(
     program_id: &Pubkey,
     accounts: Accounts<AccountInfo>,
-    params: Params,
+    params: CancelOrderParams,
 ) -> ProgramResult {
     accounts.perform_checks(program_id)?;
     let market_state = MarketState::get(accounts.market)?;

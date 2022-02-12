@@ -1,5 +1,6 @@
 use agnostic_orderbook::instruction::create_market;
-use agnostic_orderbook::state::Event;
+use aob::params::CreateMarketParams;
+use aob::state::Event;
 use solana_program::instruction::Instruction;
 use solana_program::pubkey::Pubkey;
 use solana_program::system_instruction::create_account;
@@ -90,7 +91,7 @@ pub async fn create_market_and_accounts(
             bids: &bids_account.pubkey(),
             asks: &asks_account.pubkey(),
         },
-        create_market::Params {
+        CreateMarketParams {
             caller_authority: caller_authority.pubkey().to_bytes(),
             callback_info_len: 32,
             callback_id_len: 32,

@@ -1,12 +1,13 @@
 //! Close an existing market.
-use crate::{
+use aob::params::CloseMarketParams;
+use aob::{
     error::AoError,
     orderbook::OrderBookState,
     state::{AccountTag, EventQueueHeader, MarketState, EVENT_QUEUE_HEADER_LEN},
     utils::{check_account_key, check_account_owner, check_signer},
 };
-use bonfida_utils::{BorshSize, InstructionsAccount};
-use borsh::{BorshDeserialize, BorshSerialize};
+use bonfida_utils::InstructionsAccount;
+use borsh::BorshDeserialize;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -14,12 +15,6 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
 };
-
-#[derive(BorshDeserialize, BorshSerialize, BorshSize)]
-/**
-The required arguments for a close_market instruction.
-*/
-pub struct Params {}
 
 /// The required accounts for a close_market instruction.
 #[derive(InstructionsAccount)]
@@ -73,7 +68,7 @@ impl<'a, 'b: 'a> Accounts<'a, AccountInfo<'b>> {
 pub fn process(
     program_id: &Pubkey,
     accounts: Accounts<AccountInfo>,
-    _params: Params,
+    _params: CloseMarketParams,
 ) -> ProgramResult {
     accounts.perform_checks(program_id)?;
     let mut market_state = MarketState::get(accounts.market)?;
