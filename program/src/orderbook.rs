@@ -1,5 +1,6 @@
-use crate::error::AoResult;
-use crate::state::AccountTag;
+use borsh::{BorshDeserialize, BorshSerialize};
+use solana_program::{account_info::AccountInfo, msg};
+
 use crate::{
     critbit::{LeafNode, Node, NodeHandle, Slab},
     error::AoError,
@@ -7,8 +8,8 @@ use crate::{
     state::{Event, EventQueue, SelfTradeBehavior, Side},
     utils::{fp32_div, fp32_mul},
 };
-use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::{account_info::AccountInfo, msg, program_error::ProgramError};
+use crate::error::AoResult;
+use crate::state::AccountTag;
 
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 /// This struct is written back into the event queue's register after new_order or cancel_order.
