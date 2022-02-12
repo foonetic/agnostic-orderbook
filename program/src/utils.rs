@@ -57,10 +57,10 @@ pub(crate) fn check_unitialized(account: &AccountInfo) -> AoResult {
 
 #[cfg(feature = "no-entrypoint")]
 /// This util is used to return the orderbook's spread (best_bid_price, best_ask_price) with both values in FP32 format
-pub fn get_spread<'ob>(
-    market_state_account: &AccountInfo<'ob>,
-    bids_account: &AccountInfo<'ob>,
-    asks_account: &AccountInfo<'ob>,
+pub fn get_spread<'a>(
+    market_state_account: &AccountInfo<'a>,
+    bids_account: &AccountInfo<'a>,
+    asks_account: &AccountInfo<'a>,
 ) -> (Option<u64>, Option<u64>) {
     let market_state = MarketState::get(market_state_account).unwrap();
     let orderbook = OrderBookState::new_safe(
