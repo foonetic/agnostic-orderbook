@@ -1,6 +1,6 @@
 //! Execute a new order on the orderbook
 
-use bonfida_utils::{BorshSize, InstructionsAccount};
+use bonfida_utils::InstructionsAccount;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -10,46 +10,13 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use crate::{
+use aob::params::NewOrderParams;
+use aob::{
     error::AoError,
     orderbook::OrderBookState,
-    state::{
-        EventQueue, EventQueueHeader, MarketState, SelfTradeBehavior, Side, EVENT_QUEUE_HEADER_LEN,
-    },
+    state::{EventQueue, EventQueueHeader, MarketState, EVENT_QUEUE_HEADER_LEN},
     utils::{check_account_key, check_account_owner, check_signer, round_price},
 };
-
-#[derive(BorshDeserialize, BorshSerialize, Clone, BorshSize)]
-/**
-The required arguments for a new_order instruction.
-*/
-pub struct Params {
-    /// The maximum quantity of base to be traded.
-    pub max_base_qty: u64,
-    /// The maximum quantity of quote to be traded.
-    pub max_quote_qty: u64,
-    /// The limit price of the order. This value is understood as a 32-bit fixed point number.
-    pub limit_price: u64,
-    /// The order's side.
-    pub side: Side,
-    /// The maximum number of orders to match against before performing a partial fill.
-    ///
-    /// It is then possible for a caller program to detect a partial fill by reading the [`OrderSummary`][`crate::orderbook::OrderSummary`]
-    /// in the event queue register.
-    pub match_limit: u64,
-    /// The callback information is used to attach metadata to an order. This callback information will be transmitted back through the event queue.
-    ///
-    /// The size of this vector should not exceed the current market's [`callback_info_len`][`MarketState::callback_info_len`].
-    pub callback_info: Vec<u8>,
-    /// The order will not be matched against the orderbook and will be direcly written into it.
-    ///
-    /// The operation will fail if the order's limit_price crosses the spread.
-    pub post_only: bool,
-    /// The order will be matched against the orderbook, but what remains will not be written as a new order into the orderbook.
-    pub post_allowed: bool,
-    /// Describes what would happen if this order was matched against an order with an equal `callback_info` field.
-    pub self_trade_behavior: SelfTradeBehavior,
-}
 
 /// The required accounts for a new_order instruction.
 #[derive(InstructionsAccount)]
@@ -110,7 +77,7 @@ impl<'a, 'b: 'a> Accounts<'a, AccountInfo<'b>> {
 pub fn process(
     program_id: &Pubkey,
     accounts: Accounts<AccountInfo>,
-    mut params: Params,
+    mut params: NewOrderParams,
 ) -> ProgramResult {
     accounts.perform_checks(program_id)?;
     let mut market_state = MarketState::get(accounts.market)?;
