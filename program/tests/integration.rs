@@ -17,6 +17,7 @@ use agnostic_orderbook::state::{
     EventQueue, EventQueueHeader, MarketState, OrderSummary, SelfTradeBehavior, Side,
     MARKET_STATE_LEN,
 };
+use aob::state::{EventQueue, EventQueueHeader, MarketState};
 
 #[test]
 fn test_agnostic_orderbook() -> anyhow::Result<()> {
@@ -99,7 +100,7 @@ fn test_agnostic_orderbook() -> anyhow::Result<()> {
                     bids: &bids.pubkey(),
                     asks: &asks.pubkey(),
                 },
-                create_market::Params {
+                CreateMarketParams {
                     caller_authority: payer.pubkey().to_bytes(),
                     callback_info_len: 32,
                     callback_id_len: 32,

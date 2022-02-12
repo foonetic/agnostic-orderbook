@@ -1,12 +1,6 @@
 use std::cell::RefCell;
 use std::rc::Rc;
 
-use agnostic_orderbook::instruction::{cancel_order, close_market, consume_events, new_order};
-use agnostic_orderbook::msrm_token;
-use agnostic_orderbook::state::{
-    EventQueue, EventQueueHeader, SelfTradeBehavior, Side, MARKET_STATE_LEN,
-};
-use agnostic_orderbook::state::{MarketState, OrderSummary};
 use borsh::BorshDeserialize;
 use bytemuck::try_from_bytes_mut;
 use solana_program::program_option::COption;
@@ -18,16 +12,28 @@ use solana_program_test::{processor, ProgramTest};
 use solana_sdk::account::Account;
 use solana_sdk::signature::Keypair;
 use solana_sdk::signature::Signer;
+
+use agnostic_orderbook::instruction::{cancel_order, close_market, consume_events, new_order};
+use agnostic_orderbook::msrm_token;
+use aob::orderbook::OrderSummary;
+use aob::params::{CancelOrderParams, CloseMarketParams, ConsumeEventsParams, NewOrderParams};
+use aob::state::MARKET_STATE_LEN;
+use aob::{
+    state::{
+        EventQueue, EventQueueHeader, MarketState, SelfTradeBehavior, Side,
+    },
+};
+use common::utils::{create_market_and_accounts, sign_send_instructions};
+
 pub mod common;
-use crate::common::utils::{create_market_and_accounts, sign_send_instructions};
 
 #[tokio::test]
 async fn test_agnostic_orderbook() {
     // Create program and test environment
 
     let mut program_test = ProgramTest::new(
-        "agnostic_orderbook",
-        agnostic_orderbook::ID,
+        "crate",
+        agnostic_orderbook::id(),
         processor!(agnostic_orderbook::entrypoint::process_instruction),
     );
 
@@ -139,7 +145,7 @@ async fn test_agnostic_orderbook() {
             asks: &Pubkey::new_from_array(market_state.asks),
             authority: &Pubkey::new_from_array(market_state.caller_authority),
         },
-        new_order::Params {
+        NewOrderParams {
             max_base_qty: 1000,
             max_quote_qty: 1000,
             limit_price: 1000,
@@ -182,7 +188,7 @@ async fn test_agnostic_orderbook() {
             asks: &Pubkey::new_from_array(market_state.asks),
             authority: &Pubkey::new_from_array(market_state.caller_authority),
         },
-        new_order::Params {
+        NewOrderParams {
             max_base_qty: 1100,
             max_quote_qty: 1000,
             limit_price: 1000,
@@ -237,7 +243,7 @@ async fn test_agnostic_orderbook() {
             asks: &Pubkey::new_from_array(market_state.asks),
             authority: &Pubkey::new_from_array(market_state.caller_authority),
         },
-        cancel_order::Params {
+        CancelOrderParams {
             order_id: order_summary.posted_order_id.unwrap(),
         },
     );
@@ -274,7 +280,7 @@ async fn test_agnostic_orderbook() {
             authority: &Pubkey::new_from_array(market_state.caller_authority),
             reward_target: &reward_target.pubkey(),
         },
-        consume_events::Params {
+        ConsumeEventsParams {
             number_of_entries_to_consume: 10,
         },
     );
@@ -296,7 +302,7 @@ async fn test_agnostic_orderbook() {
             authority: &Pubkey::new_from_array(market_state.caller_authority),
             lamports_target_account: &reward_target.pubkey(),
         },
-        close_market::Params {},
+        CloseMarketParams {},
     );
     sign_send_instructions(
         &mut prg_test_ctx,

@@ -1,3 +1,6 @@
+use aob::params::{
+    CancelOrderParams, CloseMarketParams, ConsumeEventsParams, CreateMarketParams, NewOrderParams,
+};
 use bonfida_utils::InstructionsAccount;
 use borsh::{BorshDeserialize, BorshSerialize};
 use num_derive::FromPrimitive;
@@ -90,7 +93,7 @@ accordingly.
 */
 pub fn create_market(
     accounts: create_market::Accounts<Pubkey>,
-    params: create_market::Params,
+    params: CreateMarketParams,
 ) -> Instruction {
     accounts.get_instruction(
         crate::id(),
@@ -104,7 +107,7 @@ Execute a new order on the orderbook.
 Depending on the provided parameters, the program will attempt to match the order with existing entries
 in the orderbook, and then optionally post the remaining order.
 */
-pub fn new_order(accounts: new_order::Accounts<Pubkey>, params: new_order::Params) -> Instruction {
+pub fn new_order(accounts: new_order::Accounts<Pubkey>, params: NewOrderParams) -> Instruction {
     accounts.get_instruction(
         crate::id(),
         AgnosticOrderbookInstruction::NewOrder as u8,
@@ -115,7 +118,7 @@ pub fn new_order(accounts: new_order::Accounts<Pubkey>, params: new_order::Param
 /// Cancel an existing order in the orderbook.
 pub fn cancel_order(
     accounts: cancel_order::Accounts<Pubkey>,
-    params: cancel_order::Params,
+    params: CancelOrderParams,
 ) -> Instruction {
     accounts.get_instruction(
         crate::id(),
@@ -127,7 +130,7 @@ pub fn cancel_order(
 /// Pop a series of events off the event queue.
 pub fn consume_events(
     accounts: consume_events::Accounts<Pubkey>,
-    params: consume_events::Params,
+    params: ConsumeEventsParams,
 ) -> Instruction {
     accounts.get_instruction(
         crate::id(),
@@ -139,7 +142,7 @@ pub fn consume_events(
 /// Close an existing market.
 pub fn close_market(
     accounts: close_market::Accounts<Pubkey>,
-    params: close_market::Params,
+    params: CloseMarketParams,
 ) -> Instruction {
     accounts.get_instruction(
         crate::id(),

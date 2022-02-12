@@ -1,5 +1,5 @@
 //! Pop a series of events off the event queue.
-use bonfida_utils::{BorshSize, InstructionsAccount};
+use bonfida_utils::InstructionsAccount;
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
@@ -9,20 +9,12 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use crate::{
+use aob::params::ConsumeEventsParams;
+use aob::{
     error::AoError,
     state::{EventQueue, EventQueueHeader, MarketState, EVENT_QUEUE_HEADER_LEN},
     utils::{check_account_key, check_account_owner, check_signer},
 };
-
-#[derive(BorshDeserialize, BorshSerialize, Clone, BorshSize)]
-/**
-The required arguments for a consume_events instruction.
-*/
-pub struct Params {
-    /// Depending on applications, it might be optimal to process several events at a time
-    pub number_of_entries_to_consume: u64,
-}
 
 /// The required accounts for a consume_events instruction.
 #[derive(InstructionsAccount)]
@@ -79,7 +71,7 @@ impl<'a, 'b: 'a> Accounts<'a, AccountInfo<'b>> {
 pub fn process<'a, 'b: 'a>(
     program_id: &Pubkey,
     accounts: Accounts<'a, AccountInfo<'b>>,
-    params: Params,
+    params: ConsumeEventsParams,
 ) -> ProgramResult {
     accounts.perform_checks(program_id)?;
     let mut market_state = MarketState::get(accounts.market)?;
