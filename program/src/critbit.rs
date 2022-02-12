@@ -1,4 +1,5 @@
-use crate::error::AoError;
+use crate::error::AoError::FailedToDeserializeSlabHeader;
+use crate::error::{AoError, AoResult};
 use crate::state::{AccountTag, Side};
 use borsh::{BorshDeserialize, BorshSerialize};
 use bytemuck::{try_from_bytes, try_from_bytes_mut, Pod, Zeroable};
@@ -193,42 +194,31 @@ pub struct Slab<'a> {
 
 // Data access methods
 impl<'a> Slab<'a> {
-    pub fn replace(self, acc_info: &AccountInfo<'a>) {
-        acc_info.data.replace(self.buffer);
+    /// Releases the memory temporarily held by Slab, replacing the memory that was
+    /// originally took out of the account_info
+    pub fn release(self, account: &AccountInfo<'a>) {
+        account.data.replace(self.buffer);
     }
 
-    pub fn check(&self, side: Side) -> bool {
-        match side {
-            Side::Bid => self.header.account_tag == AccountTag::Bids,
-            Side::Ask => self.header.account_tag == AccountTag::Asks,
+    pub fn check_account_tag(&self, account_tag: AccountTag) -> AoResult<()> {
+        if self.header.account_tag != account_tag {
+            return Err(AoError::WrongAccountTag);
         }
+        Ok(())
     }
 
-    pub fn new_from_acc_info(acc_info: &AccountInfo<'a>, callback_info_len: usize) -> Self {
-        let header = SlabHeader::deserialize(&mut (&acc_info.data.borrow() as &[u8])).unwrap();
-        // FIXME: is this ok....? Do we need to `swap()` with something.....?
-        let buffer: &'a mut [u8] = acc_info.data.take();
-        // assert_eq!(len_without_header % slot_size, 0);
-        Self {
-            // FIXME (leina): unwrap
+    pub fn new(buffer: &'a mut [u8], callback_info_len: usize) -> AoResult<Self> {
+        let header = SlabHeader::deserialize(&mut (buffer as &[u8]))
+            .map_err(|_| FailedToDeserializeSlabHeader)?;
+        let slab = Self {
+            header,
             buffer,
             callback_info_len,
-            header,
-        }
-    }
-
-    pub fn new(buffer: &'a mut [u8], callback_info_len: usize) -> Self {
-        let header = SlabHeader::deserialize(&mut (buffer as &[u8])).unwrap();
-        Self {
-            header,
-            // FIXME (leina): unwrap
-            buffer,
-            callback_info_len,
-        }
+        };
+        Ok(slab)
     }
 
     pub(crate) fn write_header(&mut self) {
-        // TODO (leina): i don't understand this
         self.header
             .serialize(&mut &mut self.buffer[..SLAB_HEADER_LEN])
             .unwrap()
