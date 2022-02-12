@@ -249,7 +249,7 @@ pub const EVENT_QUEUE_HEADER_LEN: usize = 37;
 pub const REGISTER_SIZE: usize = ORDER_SUMMARY_SIZE as usize + 1; // Option<OrderSummary>
 
 impl EventQueueHeader {
-    pub(crate) fn initialize(callback_info_len: usize) -> Self {
+    pub fn initialize(callback_info_len: usize) -> Self {
         Self {
             tag: AccountTag::EventQueue,
             head: 0,
@@ -259,7 +259,7 @@ impl EventQueueHeader {
         }
     }
 
-    pub(crate) fn check(self) -> Result<Self, ProgramError> {
+    pub fn check(self) -> Result<Self, ProgramError> {
         if self.tag != AccountTag::EventQueue {
             return Err(ProgramError::InvalidAccountData);
         };
@@ -272,7 +272,7 @@ impl EventQueueHeader {
 ///
 /// This struct is used at runtime but doesn't represent a serialized event queue
 pub struct EventQueue<'a> {
-    pub(crate) header: EventQueueHeader,
+    pub header: EventQueueHeader,
     pub(crate) buffer: Rc<RefCell<&'a mut [u8]>>, //The whole account data
     callback_info_len: usize,
 }
@@ -281,7 +281,7 @@ pub struct EventQueue<'a> {
 pub type Register<T> = Option<T>;
 
 impl<'a> EventQueue<'a> {
-    pub(crate) fn new_safe(
+    pub fn new_safe(
         header: EventQueueHeader,
         account: &AccountInfo<'a>,
         callback_info_len: usize,
@@ -320,10 +320,7 @@ impl<'a> EventQueue<'a> {
 }
 
 impl<'a> EventQueue<'a> {
-    pub(crate) fn check_buffer_size(
-        account: &AccountInfo,
-        callback_info_len: u64,
-    ) -> ProgramResult {
+    pub fn check_buffer_size(account: &AccountInfo, callback_info_len: u64) -> ProgramResult {
         let event_size = Event::compute_slot_size(callback_info_len as usize);
         if (account.data_len() - EVENT_QUEUE_HEADER_LEN - REGISTER_SIZE) % event_size != 0 {
             msg!("Event queue buffer size must be a multiple of the event size");
@@ -396,7 +393,7 @@ impl<'a> EventQueue<'a> {
     }
 
     /// Pop n entries from the event queue
-    pub(crate) fn pop_n(&mut self, number_of_entries_to_pop: u64) {
+    pub fn pop_n(&mut self, number_of_entries_to_pop: u64) {
         let capped_number_of_entries_to_pop =
             std::cmp::min(self.header.count, number_of_entries_to_pop);
         self.header.count -= capped_number_of_entries_to_pop;
@@ -405,7 +402,7 @@ impl<'a> EventQueue<'a> {
             % self.get_buf_len() as u64;
     }
 
-    pub(crate) fn write_to_register<T: BorshSerialize + BorshDeserialize>(&self, object: T) {
+    pub fn write_to_register<T: BorshSerialize + BorshDeserialize>(&self, object: T) {
         let mut register = &mut self.buffer.borrow_mut()
             [EVENT_QUEUE_HEADER_LEN..EVENT_QUEUE_HEADER_LEN + (REGISTER_SIZE)];
         Register::Some(object).serialize(&mut register).unwrap();

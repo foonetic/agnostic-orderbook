@@ -1,15 +1,15 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::{account_info::AccountInfo, msg};
 
+use crate::error::AoResult;
+use crate::params::NewOrderParams;
+use crate::state::AccountTag;
 use crate::{
     critbit::{LeafNode, Node, NodeHandle, Slab},
     error::AoError,
-    processor::new_order,
     state::{Event, EventQueue, SelfTradeBehavior, Side},
     utils::{fp32_div, fp32_mul},
 };
-use crate::error::AoResult;
-use crate::state::AccountTag;
 
 #[derive(BorshSerialize, BorshDeserialize, Debug)]
 /// This struct is written back into the event queue's register after new_order or cancel_order.
@@ -32,7 +32,7 @@ pub struct OrderSummary {
 /// The serialized size of an OrderSummary object.
 pub const ORDER_SUMMARY_SIZE: u32 = 41;
 
-pub(crate) struct OrderBookState<'a> {
+pub struct OrderBookState<'a> {
     bids: Slab<'a>,
     asks: Slab<'a>,
     callback_id_len: usize,
@@ -81,7 +81,7 @@ impl<'a> OrderBookState<'a> {
     /// In the meantime, RefCell holds a (rather useless) empty mutable buffer &mut
     /// []. So we do our business, and once we’re done we make sure to practice
     /// good manners and replace the mutable buffer we took back into the AccountInfo
-    pub(crate) fn new(
+    pub fn new(
         bids_account: &AccountInfo<'a>,
         asks_account: &AccountInfo<'a>,
         callback_info_len: usize,
@@ -132,18 +132,18 @@ impl<'a> OrderBookState<'a> {
         }
     }
 
-    pub(crate) fn commit_changes(&mut self) {
+    pub fn commit_changes(&mut self) {
         self.bids.write_header();
         self.asks.write_header();
     }
 
-    pub(crate) fn new_order(
+    pub fn new_order(
         &mut self,
-        params: new_order::Params,
+        params: NewOrderParams,
         event_queue: &mut EventQueue,
         min_base_order_size: u64,
     ) -> AoResult<OrderSummary> {
-        let new_order::Params {
+        let NewOrderParams {
             max_base_qty,
             max_quote_qty,
             side,

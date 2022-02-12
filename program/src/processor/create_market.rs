@@ -1,6 +1,7 @@
 //! Create and initialize a new orderbook market
-use bonfida_utils::{BorshSize, InstructionsAccount};
-use borsh::{BorshDeserialize, BorshSerialize};
+use bonfida_utils::InstructionsAccount;
+use borsh::BorshSerialize;
+
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -8,36 +9,13 @@ use solana_program::{
     pubkey::Pubkey,
 };
 
-use crate::{
+use aob::params::CreateMarketParams;
+use aob::{
     critbit::Slab,
     error::AoError,
-    state::{AccountTag, EventQueueHeader, EventQueue, MarketState},
+    state::{AccountTag, EventQueue, EventQueueHeader, MarketState},
     utils::{check_account_owner, check_unitialized},
 };
-
-#[derive(BorshDeserialize, BorshSerialize, BorshSize)]
-/**
-The required arguments for a create_market instruction.
-*/
-pub struct Params {
-    /// The caller authority will be the required signer for all market instructions.
-    ///
-    /// In practice, it will almost always be a program-derived address..
-    pub caller_authority: [u8; 32],
-    /// Callback information can be used by the caller to attach specific information to all orders.
-    ///
-    /// An example of this would be to store a public key to uniquely identify the owner of a particular order.
-    /// This example would thus require a value of 32
-    pub callback_info_len: u64,
-    /// The prefix length of callback information which is used to identify self-trading
-    pub callback_id_len: u64,
-    /// The minimum order size that can be inserted into the orderbook after matching.
-    pub min_base_order_size: u64,
-    /// Enables the limiting of price precision on the orderbook (price ticks)
-    pub tick_size: u64,
-    /// Fixed fee for every new order operation. A higher fee increases incentives for cranking.
-    pub cranker_reward: u64,
-}
 
 /// The required accounts for a create_market instruction.
 #[derive(InstructionsAccount)]
@@ -86,10 +64,10 @@ impl<'a, 'b> Accounts<'a, AccountInfo<'b>> {
 pub fn process(
     program_id: &Pubkey,
     accounts: Accounts<AccountInfo>,
-    params: Params,
+    params: CreateMarketParams,
 ) -> ProgramResult {
     accounts.perform_checks(program_id)?;
-    let Params {
+    let CreateMarketParams {
         caller_authority,
         callback_info_len,
         callback_id_len,
