@@ -30,16 +30,16 @@ pub struct OrderSummary {
 /// The serialized size of an OrderSummary object.
 pub const ORDER_SUMMARY_SIZE: u32 = 41;
 
-pub(crate) struct OrderBookState<'ob> {
-    bids: Slab<'ob>,
-    asks: Slab<'ob>,
+pub(crate) struct OrderBookState<'a> {
+    bids: Slab<'a>,
+    asks: Slab<'a>,
     callback_id_len: usize,
 }
 
-impl<'ob> OrderBookState<'ob> {
+impl<'a> OrderBookState<'a> {
     pub(crate) fn new_safe(
-        bids_account: &AccountInfo<'ob>,
-        asks_account: &AccountInfo<'ob>,
+        bids_account: &AccountInfo<'a>,
+        asks_account: &AccountInfo<'a>,
         callback_info_len: usize,
         callback_id_len: usize,
     ) -> Result<Self, ProgramError> {
@@ -55,9 +55,9 @@ impl<'ob> OrderBookState<'ob> {
         })
     }
 
-    pub fn cleanup(self, bids_account: &AccountInfo<'ob>, asks_account: &AccountInfo<'ob>) {
-        self.bids.replace_acc_info(bids_account);
-        self.asks.replace_acc_info(asks_account);
+    pub fn replace(self, bids_account: &AccountInfo<'a>, asks_account: &AccountInfo<'a>) {
+        self.bids.replace(bids_account);
+        self.asks.replace(asks_account);
     }
 
     pub fn find_bbo(&self, side: Side) -> Option<NodeHandle> {
@@ -80,7 +80,7 @@ impl<'ob> OrderBookState<'ob> {
         (best_bid_price, best_ask_price)
     }
 
-    pub fn get_tree(&mut self, side: Side) -> &mut Slab<'ob> {
+    pub fn get_tree(&mut self, side: Side) -> &mut Slab<'a> {
         match side {
             Side::Bid => &mut self.bids,
             Side::Ask => &mut self.asks,

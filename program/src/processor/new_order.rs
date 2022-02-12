@@ -122,9 +122,7 @@ pub fn process(
 
     let callback_info_len = market_state.callback_info_len as usize;
 
-    msg!("Creating order book");
-    msg!("Bids: {:?}", &accounts.bids.data.borrow().len());
-    msg!("Asks: {:?}", &accounts.asks.data.borrow().len());
+    msg!("New Order: Creating order book");
     // sol_log_compute_units();
     let mut order_book = OrderBookState::new_safe(
         accounts.bids,
@@ -139,7 +137,7 @@ pub fn process(
         return Err(ProgramError::InvalidArgument);
     }
 
-    msg!("Creating EventQueue");
+    msg!("New Order: Creating event queue");
     // sol_log_compute_units();
 
     let header = {
@@ -152,7 +150,7 @@ pub fn process(
     let mut event_queue = EventQueue::new_safe(header, accounts.event_queue, callback_info_len)?;
     // sol_log_compute_units();
 
-    msg!("Creating new order");
+    msg!("New Order: Creating new order");
     // sol_log_compute_units();
     let order_summary =
         order_book.new_order(params, &mut event_queue, market_state.min_base_order_size)?;
@@ -182,7 +180,7 @@ pub fn process(
         return Err(AoError::FeeNotPayed.into());
     }
     market_state.fee_budget = accounts.market.lamports() - market_state.initial_lamports;
-    order_book.cleanup(accounts.bids, accounts.asks);
+    order_book.replace(accounts.bids, accounts.asks);
 
     Ok(())
 }
