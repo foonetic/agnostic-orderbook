@@ -1,4 +1,5 @@
-
+use crate::error::AoResult;
+use crate::state::AccountTag;
 use crate::{
     critbit::{LeafNode, Node, NodeHandle, Slab},
     error::AoError,
@@ -37,17 +38,58 @@ pub(crate) struct OrderBookState<'a> {
 }
 
 impl<'a> OrderBookState<'a> {
-    pub(crate) fn new_safe(
+    /// Takes the buffer out of the AccountInfo's data field, replacing it with an
+    /// empty buffer. The memory will be replaced with the original. See `release`.
+    ///
+    /// This is useful for separating the lifetime of the buffer from the `RefMut`.
+    ///
+    /// AccountInfo.data holds a RefCell. RefCell::borrow_mut() returns a RefMut
+    ///
+    /// RefMut is basically runtime-metadata that “borrow checks”, making sure
+    /// nothing else can borrow that thing This RefMut has it’s own lifetime 'b,
+    /// distinct from the lifetime of the T it holds (RefMut<'b, T>) But what it’s
+    /// holding as T is a mutable reference to a buffer &mut [u8] which has a
+    /// separate lifetime of 'a  (the lifetime we actually care about)
+    ///
+    /// RefMut itself implements deref_mut.  This is for ergonomics: now you can
+    /// use RefMut just like &'b mut. But it’s not really opaque, because note the
+    /// introduction of the new lifetime 'b Specifically, you now can imagine we
+    /// really have a &'b mut &'a mut [u8]: RefMut::deref_mut => &'b mut
+    ///
+    /// But this is a problem, because Rust shortens that to &'b mut T (you are
+    /// tied to the lifetime of RefMut, which is tied to the lifetime of the
+    /// original RefCell) That is not what we want, because now we have to deal
+    /// with all this crap proving to the borrow checker how long the RefMut lives,
+    /// when all we care about is the original lifetime of the buffer 'a If we
+    /// instead .take(), we are mutably moving the reference to the buffer (&'a mut
+    /// [u8]) into the current function   (note .take() is distinct from taking
+    /// ownership). By doing this, we separate the lifetime of the buffer from the
+    /// lifetime of RefCell (and transitively, RefMut). After .take(), RefCell is
+    /// now holding a RefCell(T::default())
+
+    /// It’s important to note the only copying that is happening when we .take()
+    /// is the usize pointer (i.e. the reference), not the buffer itself.
+
+    /// Now there’s no more 'b because the function where we do .take() now has
+    /// ownership of &'a mut [u8] vs. the RefCell. More accurately, it’s tied to
+    /// the lifetime of the function which can be elided in all subsequent function
+    /// calls within that function. Remember: by definition, the lifetime of
+    /// variables on a caller function outlive the callee function given how stacks
+    /// work.
+
+    /// In the meantime, RefCell holds a (rather useless) empty mutable buffer &mut
+    /// []. So we do our business, and once we’re done we make sure to practice
+    /// good manners and replace the mutable buffer we took back into the AccountInfo
+    pub(crate) fn new(
         bids_account: &AccountInfo<'a>,
         asks_account: &AccountInfo<'a>,
         callback_info_len: usize,
         callback_id_len: usize,
-    ) -> Result<Self, ProgramError> {
-        let bids = Slab::new_from_acc_info(bids_account, callback_info_len);
-        let asks = Slab::new_from_acc_info(asks_account, callback_info_len);
-        if !(bids.check(Side::Bid) && asks.check(Side::Ask)) {
-            return Err(ProgramError::InvalidAccountData);
-        }
+    ) -> AoResult<Self> {
+        let bids = Slab::new(bids_account.data.take(), callback_info_len)?;
+        bids.check_account_tag(AccountTag::Bids)?;
+        let asks = Slab::new(asks_account.data.take(), callback_info_len)?;
+        asks.check_account_tag(AccountTag::Asks)?;
         Ok(Self {
             bids,
             asks,
@@ -55,9 +97,11 @@ impl<'a> OrderBookState<'a> {
         })
     }
 
-    pub fn replace(self, bids_account: &AccountInfo<'a>, asks_account: &AccountInfo<'a>) {
-        self.bids.replace(bids_account);
-        self.asks.replace(asks_account);
+    /// Releases the memory temporarily held by OrderBookState, replacing the memory that was
+    /// originally took out of the `bids_account` and `asks_account`
+    pub fn release(self, bids_account: &AccountInfo<'a>, asks_account: &AccountInfo<'a>) {
+        self.bids.release(bids_account);
+        self.asks.release(asks_account);
     }
 
     pub fn find_bbo(&self, side: Side) -> Option<NodeHandle> {
@@ -97,7 +141,7 @@ impl<'a> OrderBookState<'a> {
         params: new_order::Params,
         event_queue: &mut EventQueue,
         min_base_order_size: u64,
-    ) -> Result<OrderSummary, AoError> {
+    ) -> AoResult<OrderSummary> {
         let new_order::Params {
             max_base_qty,
             max_quote_qty,

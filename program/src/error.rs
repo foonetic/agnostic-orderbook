@@ -50,6 +50,10 @@ pub enum AoError {
     WrongMsrmBalance,
     #[error("Illegal MSRM token account owner")]
     IllegalMsrmOwner,
+    #[error("Wrong account tag")]
+    WrongAccountTag,
+    #[error("Failed to deserialize slab header")]
+    FailedToDeserializeSlabHeader,
 }
 
 impl From<AoError> for ProgramError {

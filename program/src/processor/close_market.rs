@@ -81,7 +81,7 @@ pub fn process(
     check_accounts(&accounts, &market_state)?;
 
     // Check if there are still orders in the book
-    let orderbook_state = OrderBookState::new_safe(
+    let orderbook_state = OrderBookState::new(
         accounts.bids,
         accounts.asks,
         market_state.callback_info_len as usize,
@@ -121,7 +121,7 @@ pub fn process(
     **asks_lamports = 0;
     **event_queue_lamports = 0;
 
-    orderbook_state.replace(accounts.bids, accounts.asks);
+    orderbook_state.release(accounts.bids, accounts.asks);
 
     Ok(())
 }
