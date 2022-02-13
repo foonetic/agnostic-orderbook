@@ -7,12 +7,12 @@ describe('anchor-agnostic-orderbook', () => {
 
   const program = anchor.workspace.AnchorAgnosticOrderbook;
 
-  it('create market', async () => {
-    const market = Keypair.generate();
-    const eventQueue = Keypair.generate();
-    const bids = Keypair.generate();
-    const asks = Keypair.generate();
+  const market = Keypair.generate();
+  const eventQueue = Keypair.generate();
+  const bids = Keypair.generate();
+  const asks = Keypair.generate();
 
+  it('create market', async () => {
     const tx = await program.methods
         .createMarket(
             getProvider().wallet.publicKey,
@@ -33,8 +33,101 @@ describe('anchor-agnostic-orderbook', () => {
         .signers([market, eventQueue, bids, asks])
         .rpc()
     console.log('create market', tx);
-
-    const account = await getProvider().connection.getAccountInfo(market.publicKey);
-    console.log(account);
   });
+
+  it('new bid', async() => {
+    const tx = await program.methods
+        .newOrder(
+            new BN(1000),
+            new BN(1000),
+            new BN(1000),
+            0,
+            new BN(3),
+            getProvider().wallet.publicKey.toBuffer(),
+            false,
+            true,
+            1,
+        )
+        .accounts({
+          market: market.publicKey,
+          eventQueue: eventQueue.publicKey,
+          bids: bids.publicKey,
+          asks: asks.publicKey,
+          authority: getProvider().wallet.publicKey,
+        })
+        .rpc()
+    console.log('new bid', tx);
+  })
+
+  it('new ask', async() => {
+    const tx = await program.methods
+        .newOrder(
+            new BN(1100),
+            new BN(1100),
+            new BN(1000),
+            1,
+            new BN(3),
+            getProvider().wallet.publicKey.toBuffer(),
+            false,
+            true,
+            1,
+        )
+        .accounts({
+          market: market.publicKey,
+          eventQueue: eventQueue.publicKey,
+          bids: bids.publicKey,
+          asks: asks.publicKey,
+          authority: getProvider().wallet.publicKey,
+        })
+        .rpc()
+    console.log('new ask', tx);
+
+    console.log(program.account.market);
+  })
+
+  // it('new cancel', async() => {
+  //   const tx = await program.methods
+  //       .cancelOrder(
+  //           1
+  //       )
+  //       .accounts({
+  //         market: market.publicKey,
+  //         eventQueue: eventQueue.publicKey,
+  //         bids: bids.publicKey,
+  //         asks: asks.publicKey,
+  //         authority: getProvider().wallet.publicKey,
+  //       })
+  //       .rpc()
+  //   console.log('new ask', tx);
+  // })
+  //
+  // it('consume events', async() => {
+  //   const tx = await program.methods.consume
+  //   const eventQueueAccount = await program.account.eventQueue.fetch(eventQueue.publicKey);
+  //   console.log(eventQueueAccount);
+  // })
+
+  // it('cancel order', async() => {
+  //   const tx = await program.methods
+  //       .cancel_order(
+  //           new BN(1000),
+  //           new BN(1000),
+  //           new BN(1000),
+  //           0,
+  //           "",
+  //           false,
+  //           true,
+  //           1,
+  //           3
+  //       )
+  //       .accounts({
+  //         market: market.publicKey,
+  //         eventQueue: eventQueue.publicKey,
+  //         bids: bids.publicKey,
+  //         asks: asks.publicKey,
+  //         authority: getProvider().wallet.publicKey,
+  //       })
+  //       .rpc()
+  //   console.log('new order', tx);
+  // })
 });
