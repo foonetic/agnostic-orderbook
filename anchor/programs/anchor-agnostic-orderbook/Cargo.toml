@@ -17,3 +17,6 @@ default = []
 [dependencies]
 aob = { path = "../../../aob" }
 anchor-lang = "0.21.0"
+bytemuck = "1.7.3"
+num-traits = "0.2.14"
+
