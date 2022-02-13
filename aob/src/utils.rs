@@ -10,6 +10,7 @@ use crate::{
 #[cfg(feature = "no-entrypoint")]
 use crate::{orderbook::OrderBookState, state::MarketState};
 
+#[allow(dead_code)]
 #[cfg(not(debug_assertions))]
 #[inline(always)]
 unsafe fn invariant(check: bool) {
