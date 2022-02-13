@@ -9,7 +9,7 @@ use std::{
 use anchor_lang::prelude::*;
 use bonfida_utils::BorshSize;
 use borsh::{BorshDeserialize, BorshSerialize};
-use bytemuck::try_from_bytes_mut;
+use bytemuck::{Pod, try_from_bytes_mut, Zeroable};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 use solana_program::{
@@ -17,8 +17,7 @@ use solana_program::{
 };
 
 use crate::critbit::IoError;
-pub use crate::orderbook::{OrderSummary, ORDER_SUMMARY_SIZE};
-
+pub use crate::orderbook::{ORDER_SUMMARY_SIZE, OrderSummary};
 #[cfg(feature = "no-entrypoint")]
 pub use crate::utils::get_spread;
 
@@ -85,8 +84,8 @@ pub enum SelfTradeBehavior {
 }
 
 /// The orderbook market's central state
-#[account(zero_copy)]
-#[derive(Debug, Default)]
+/// TODO zero-copy for Anchor
+#[derive(BorshDeserialize, BorshSerialize, Debug, Copy, Clone, Default, Pod, Zeroable)]
 #[repr(C)]
 pub struct MarketState {
     /// Identifies the account as a [`MarketState`] object.
@@ -247,8 +246,8 @@ impl Event {
 ////////////////////////////////////////////////////
 // Event Queue
 
-#[derive(BorshDeserialize, BorshSerialize, Clone, Default)] // TODO zero_copy
 /// Describes the current state of the event queue
+#[derive(BorshDeserialize, BorshSerialize, Clone)]
 pub struct EventQueueHeader {
     tag: AccountTag, // Initialized, EventQueue
     head: u64,
@@ -285,7 +284,6 @@ impl EventQueueHeader {
 /// and a circular buffer of serialized events.
 ///
 /// This struct is used at runtime but doesn't represent a serialized event queue
-#[derive(Default)]
 pub struct EventQueue<'a> {
     pub header: EventQueueHeader,
     pub(crate) buffer: Rc<RefCell<&'a mut [u8]>>, //The whole account data

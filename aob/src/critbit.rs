@@ -172,7 +172,7 @@ impl<'a> NodeRef<'a> {
 ////////////////////////////////////
 // Slabs
 
-#[derive(BorshDeserialize, BorshSerialize, Clone, Debug, Default)]
+#[derive(BorshDeserialize, BorshSerialize, Debug)]
 struct SlabHeader {
     account_tag: AccountTag,
     bump_index: u64,
@@ -190,23 +190,14 @@ struct SlabHeader {
 pub const SLAB_HEADER_LEN: usize = 97;
 pub const PADDED_SLAB_HEADER_LEN: usize = SLAB_HEADER_LEN + 7;
 
-#[derive(Debug, Default)]
 pub struct Slab<'a> {
     header: SlabHeader,
     // TODO `Slab` cannot implement `Clone` due to this mutable reference
+    // which is limiting for Anchor
     // turns out this is quite limiting, especially since many AccountInfo derives `Clone`
     pub buffer: &'a mut [u8],
     pub callback_info_len: usize,
 }
-// impl<'a> Clone for Slab<'a> {
-//     fn clone(&self) -> Self {
-//         Slab {
-//             header: self.header.clone(),
-//             buffer: self.buffer,
-//             callback_info_len: self.callback_info_len.clone()
-//         }
-//     }
-// }
 
 // Data access methods
 impl<'a> Slab<'a> {
