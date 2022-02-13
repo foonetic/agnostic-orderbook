@@ -53,8 +53,8 @@ pub enum AoError {
     IllegalMsrmOwner,
     #[error("Wrong account tag")]
     WrongAccountTag,
-    #[error("Failed to deserialize slab header")]
-    FailedToDeserializeSlabHeader,
+    #[error("Failed to deserialize")]
+    FailedToDeserialize,
 }
 
 impl From<AoError> for ProgramError {
@@ -120,7 +120,7 @@ impl PrintProgramError for AoError {
                 msg!("Error: Wrong account tag")
             }
 
-            AoError::FailedToDeserializeSlabHeader => {
+            AoError::FailedToDeserialize => {
                 msg!("Error: Failed to deserialize slab header")
             }
         }
