@@ -71,8 +71,9 @@ impl Side {
     }
 }
 
-#[derive(BorshDeserialize, BorshSerialize, Clone, PartialEq, FromPrimitive, BorshSize)]
 /// Describes what happens when two order with identical callback informations are matched together
+#[derive(BorshDeserialize, BorshSerialize, Clone, PartialEq, FromPrimitive, ToPrimitive, BorshSize)]
+#[repr(u8)]
 pub enum SelfTradeBehavior {
     /// The orders are matched together
     DecrementTake,

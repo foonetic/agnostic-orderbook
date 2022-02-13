@@ -9,7 +9,7 @@ use num_traits::FromPrimitive;
 use solana_program::account_info::AccountInfo;
 use solana_program::pubkey::Pubkey;
 
-use crate::error::AoError::FailedToDeserializeSlabHeader;
+use crate::error::AoError::FailedToDeserialize;
 use crate::error::{AoError, AoResult};
 use crate::state::AccountTag;
 
@@ -225,7 +225,7 @@ impl<'a> Slab<'a> {
 
     pub fn new(buffer: &'a mut [u8], callback_info_len: usize) -> AoResult<Self> {
         let header = SlabHeader::deserialize(&mut (buffer as &[u8]))
-            .map_err(|_| FailedToDeserializeSlabHeader)?;
+            .map_err(|_| FailedToDeserialize)?;
         let slab = Self {
             header,
             buffer,
