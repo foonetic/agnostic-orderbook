@@ -1,3 +1,7 @@
+use anchor_lang::declare_id;
+
+declare_id!("aaobKniTtDGvCZces7GH5UReLYP671bBkB96ahr9x3e");
+
 #[doc(hidden)]
 pub mod critbit;
 #[doc(hidden)]
