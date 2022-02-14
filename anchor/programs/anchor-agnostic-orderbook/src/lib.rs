@@ -303,12 +303,22 @@ pub mod anchor_agnostic_orderbook {
     }
 }
 
-#[account]
-pub struct MyMarketState {
-    size: u64
-}
-
 /// TODO zero-copy. this currently delegates to Borsh
+///
+/// This is to solve the problem of:
+/// How can I implement Anchor traits on a type `T` without modifying `T` itself? (i.e. attaching
+/// `derive` macros)
+///
+/// The "wrapper type" pattern is done in Anchor's own codebase.
+///
+/// See how Anchor does this pattern in their `spl` wrappers here:
+/// https://github.com/project-serum/anchor/blob/master/spl/src/token.rs#L306
+///
+/// See this PR comment for more details and thinking about the trade-offs (vs. modifying orderbook
+/// data structures directly):
+/// https://github.com/foonetic/agnostic-orderbook/pull/10#issuecomment-1038329572
+///
+/// Important! This isn't generally possible, because of Rust's orphan rule
 #[derive(Clone, Default)]
 pub struct MarketState(aob::state::MarketState);
 
