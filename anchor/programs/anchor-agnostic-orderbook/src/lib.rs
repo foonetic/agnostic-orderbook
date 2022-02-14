@@ -15,10 +15,10 @@ use aob::error::AoError::FailedToDeserialize;
 use aob::orderbook::OrderBookState;
 use aob::orderbook::OrderSummary;
 use aob::params::NewOrderParams;
-use aob::state::{AccountTag, EventQueueHeader, MARKET_STATE_LEN};
-use aob::state::{EVENT_QUEUE_HEADER_LEN, EventQueue};
-use aob::state::{SelfTradeBehavior, Side};
 use aob::state::get_side_from_order_id;
+use aob::state::{AccountTag, EventQueueHeader, MARKET_STATE_LEN};
+use aob::state::{EventQueue, EVENT_QUEUE_HEADER_LEN};
+use aob::state::{SelfTradeBehavior, Side};
 use aob::utils::fp32_mul;
 use aob::utils::round_price;
 
@@ -303,84 +303,19 @@ pub mod anchor_agnostic_orderbook {
     }
 }
 
-/// TODO zero-copy. this currently delegates to Borsh
-///
-/// This is to solve the problem of:
-/// How can I implement Anchor traits on a type `T` without modifying `T` itself? (i.e. attaching
-/// `derive` macros)
-///
-/// The "wrapper type" pattern is done in Anchor's own codebase.
-///
-/// See how Anchor does this pattern in their `spl` wrappers here:
-/// https://github.com/project-serum/anchor/blob/master/spl/src/token.rs#L306
-///
-/// See this PR comment for more details and thinking about the trade-offs (vs. modifying orderbook
-/// data structures directly):
-/// https://github.com/foonetic/agnostic-orderbook/pull/10#issuecomment-1038329572
-///
-/// Important! This isn't generally possible, because of Rust's orphan rule
-#[derive(Clone, Default)]
-pub struct MarketState(aob::state::MarketState);
-
-impl MarketState {
-    pub const LEN: usize = MARKET_STATE_LEN;
-}
-
-impl Deref for MarketState {
-    type Target = aob::state::MarketState;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for MarketState {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-// AccountDeserialize delegates to AnchorDeserialize (which delegates to Borsh)
-impl AccountDeserialize for MarketState {
-    fn try_deserialize_unchecked(buf: &mut &[u8]) -> Result<Self, ProgramError> {
-        AnchorDeserialize::deserialize(buf).map_err(|e| ProgramError::InvalidAccountData)
-    }
-}
-
-impl AccountSerialize for MarketState {
-    fn try_serialize<W: Write>(&self, _writer: &mut W) -> Result<(), ProgramError> {
-        self.serialize(_writer).map_err(|e| ProgramError::BorshIoError(e.to_string()))
-    }
-}
-
-impl AnchorSerialize for MarketState {
-    fn serialize<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        self.0.serialize(writer)
-    }
-}
-
-impl AnchorDeserialize for MarketState {
-    fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
-        aob::state::MarketState::deserialize(buf).map(|market_state| MarketState(market_state))
-    }
-}
-
-impl Owner for MarketState {
-    fn owner() -> Pubkey {
-        crate::id()
-    }
-}
-
 #[derive(Accounts)]
 pub struct CreateMarket<'info> {
     // TODO PDAs?
     #[account(init, payer = payer)]
     pub market: Account<'info, MarketState>,
+    // TODO pass in space size instead of just max
     #[account(init, payer = payer, space = 10240)]
     pub event_queue: AccountInfo<'info>,
-    // TODO it would be nicer to parameterize with the actual types `T`
-    // and let Anchor do the serde boilerplate, checks etc. for us
-    // but `Slab` does not implement `Clone` (see comment on `Slab` struct)
+    // TODO it would be nicer to parameterize with the actual types `T` instead of the `AccountInfo`
+    // escape hatch.
+    //
+    // We want to let Anchor do the serde boilerplate, checks etc. for us
+    // but `Slab` does not implement `Clone` (which Anchor needs -- see comment on `Slab` struct)
     #[account(init, payer = payer, space = 10240)]
     pub bids: AccountInfo<'info>,
     #[account(init, payer = payer, space = 10240)]
@@ -442,6 +377,75 @@ pub struct CloseMarket<'info> {
     pub authority: Signer<'info>,
     #[account(mut)]
     pub lamports_target_account: Signer<'info>,
+}
+
+/// TODO zero-copy. this currently delegates to Borsh
+///
+/// This is to solve the problem of:
+/// How can I implement Anchor traits on a type `T` without modifying `T` itself? (i.e. attaching
+/// `derive` macros)
+///
+/// The "wrapper type" pattern is done in Anchor's own codebase.
+///
+/// See how Anchor does this pattern in their `spl` wrappers here:
+/// https://github.com/project-serum/anchor/blob/master/spl/src/token.rs#L306
+///
+/// See this PR comment for more details and thinking about the trade-offs (vs. modifying orderbook
+/// data structures directly):
+/// https://github.com/foonetic/agnostic-orderbook/pull/10#issuecomment-1038329572
+///
+/// Important! This isn't generally possible, because of Rust's orphan rule
+#[derive(Clone, Default)]
+pub struct MarketState(aob::state::MarketState);
+
+impl MarketState {
+    pub const LEN: usize = MARKET_STATE_LEN;
+}
+
+impl Deref for MarketState {
+    type Target = aob::state::MarketState;
+
+    fn deref(&self) -> &Self::Target {
+        &self.0
+    }
+}
+
+impl DerefMut for MarketState {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.0
+    }
+}
+
+// AccountDeserialize delegates to AnchorDeserialize (which delegates to Borsh)
+impl AccountDeserialize for MarketState {
+    fn try_deserialize_unchecked(buf: &mut &[u8]) -> Result<Self, ProgramError> {
+        AnchorDeserialize::deserialize(buf).map_err(|e| ProgramError::InvalidAccountData)
+    }
+}
+
+impl AccountSerialize for MarketState {
+    fn try_serialize<W: Write>(&self, _writer: &mut W) -> Result<(), ProgramError> {
+        self.serialize(_writer)
+            .map_err(|e| ProgramError::BorshIoError(e.to_string()))
+    }
+}
+
+impl AnchorSerialize for MarketState {
+    fn serialize<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        self.0.serialize(writer)
+    }
+}
+
+impl AnchorDeserialize for MarketState {
+    fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
+        aob::state::MarketState::deserialize(buf).map(|market_state| MarketState(market_state))
+    }
+}
+
+impl Owner for MarketState {
+    fn owner() -> Pubkey {
+        crate::id()
+    }
 }
 
 // #[account(zero_copy)]
