@@ -250,7 +250,7 @@ impl Event {
 // Event Queue
 
 /// Describes the current state of the event queue
-#[derive(BorshDeserialize, BorshSerialize, Clone)]
+#[derive(Clone)]
 pub struct EventQueueHeader {
     tag: AccountTag, // Initialized, EventQueue
     head: u64,
@@ -287,10 +287,34 @@ impl EventQueueHeader {
 /// and a circular buffer of serialized events.
 ///
 /// This struct is used at runtime but doesn't represent a serialized event queue
+#[derive(Clone)]
 pub struct EventQueue<'a> {
     pub header: EventQueueHeader,
-    pub(crate) buffer: Rc<RefCell<&'a mut [u8]>>, //The whole account data
     callback_info_len: usize,
+    pub(crate) buffer: Rc<RefCell<&'a mut [u8]>>, //The whole account data
+}
+
+impl<'a> AccountSerialize for EventQueue<'a> {}
+impl<'a> AccountDeserialize for EventQueue<'a> {
+    fn try_deserialize_unchecked(buf: &mut &[u8]) -> Result<Self, ProgramError> {
+        todo!()
+    }
+}
+impl<'a> AnchorSerialize for EventQueue<'a> {
+    fn serialize<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
+        todo!()
+    }
+}
+impl<'a> AnchorDeserialize for EventQueue<'a> {
+    fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
+        todo!()
+    }
+}
+
+impl<'a> Owner for EventQueue<'a> {
+    fn owner() -> Pubkey {
+        todo!()
+    }
 }
 
 /// The event queue register can hold arbitrary data returned by the AAOB. Currently only used to return [`OrderSummary`] objects.

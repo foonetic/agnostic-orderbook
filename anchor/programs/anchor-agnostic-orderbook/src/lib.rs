@@ -310,7 +310,7 @@ pub struct CreateMarket<'info> {
     pub market: AccountLoader<'info, MarketState>,
     // TODO pass in space size instead of just max
     #[account(init, payer = payer, space = 10240)]
-    pub event_queue: AccountInfo<'info>,
+    pub event_queue: Account<'info, EventQueue<'a>>,
     // TODO it would be nicer to parameterize with the actual types `T` instead of the `AccountInfo`
     // escape hatch.
     //
