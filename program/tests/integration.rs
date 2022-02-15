@@ -11,13 +11,13 @@ use solana_sdk::signature::Keypair;
 use solana_sdk::system_instruction;
 use solana_sdk::{signature::Signer, transaction::Transaction};
 use solana_validator::test_validator::*;
-
 use agnostic_orderbook::instruction::{cancel_order, create_market, new_order};
-use agnostic_orderbook::state::{
+
+use aob::params::{CancelOrderParams, CreateMarketParams, NewOrderParams};
+use aob::state::{
     EventQueue, EventQueueHeader, MarketState, OrderSummary, SelfTradeBehavior, Side,
     MARKET_STATE_LEN,
 };
-use aob::state::{EventQueue, EventQueueHeader, MarketState};
 
 #[test]
 fn test_agnostic_orderbook() -> anyhow::Result<()> {
@@ -27,8 +27,7 @@ fn test_agnostic_orderbook() -> anyhow::Result<()> {
         .start();
     let rpc_client = test_validator.get_rpc_client();
     let blockhash = rpc_client.get_latest_blockhash()?;
-
-    // TODO devnet
+// TODO devnet
     // rpc_client.request_airdrop(&user.pubkey(), 1_000_000)?;
     // let rpc_client = RpcClient::new_with_commitment("https://api.devnet.solana.com".to_string(), CommitmentConfig::confirmed());
 
@@ -130,7 +129,7 @@ fn test_agnostic_orderbook() -> anyhow::Result<()> {
                 asks: &Pubkey::new_from_array(market_state.asks),
                 authority: &Pubkey::new_from_array(market_state.caller_authority),
             },
-            new_order::Params {
+            NewOrderParams {
                 max_base_qty: 1000,
                 max_quote_qty: 1000,
                 limit_price: 1000,
@@ -159,7 +158,7 @@ fn test_agnostic_orderbook() -> anyhow::Result<()> {
                 asks: &Pubkey::new_from_array(market_state.asks),
                 authority: &Pubkey::new_from_array(market_state.caller_authority),
             },
-            new_order::Params {
+            NewOrderParams {
                 max_base_qty: 1100,
                 max_quote_qty: 1000,
                 limit_price: 1000,
@@ -204,7 +203,7 @@ fn test_agnostic_orderbook() -> anyhow::Result<()> {
                 asks: &Pubkey::new_from_array(market_state.asks),
                 authority: &Pubkey::new_from_array(market_state.caller_authority),
             },
-            cancel_order::Params {
+            CancelOrderParams {
                 order_id: order_summary.posted_order_id.unwrap(),
             },
         )],

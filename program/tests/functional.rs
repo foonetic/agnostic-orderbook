@@ -28,6 +28,7 @@ use common::utils::{create_market_and_accounts, sign_send_instructions};
 pub mod common;
 
 #[tokio::test]
+#[ignore]
 async fn test_agnostic_orderbook() {
     // Create program and test environment
 
