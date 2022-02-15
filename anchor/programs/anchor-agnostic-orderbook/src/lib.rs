@@ -16,7 +16,7 @@ use aob::orderbook::OrderBookState;
 use aob::orderbook::OrderSummary;
 use aob::params::NewOrderParams;
 use aob::state::get_side_from_order_id;
-use aob::state::{AccountTag, EventQueueHeader, MARKET_STATE_LEN};
+use aob::state::{AccountTag, EventQueueHeader, MarketState, MARKET_STATE_LEN};
 use aob::state::{EventQueue, EVENT_QUEUE_HEADER_LEN};
 use aob::state::{SelfTradeBehavior, Side};
 use aob::utils::fp32_mul;
@@ -37,8 +37,8 @@ pub mod anchor_agnostic_orderbook {
         tick_size: u64,
         cranker_reward: u64,
     ) -> ProgramResult {
-        let market_state = &mut ctx.accounts.market;
-        market_state.0 = aob::state::MarketState {
+        let market_state = &mut ctx.accounts.market.load_init()?;
+        *market_state.deref_mut() = aob::state::MarketState {
             tag: AccountTag::Market as u64,
             caller_authority: caller_authority.to_bytes(),
             event_queue: ctx.accounts.event_queue.key.to_bytes(),
@@ -47,7 +47,7 @@ pub mod anchor_agnostic_orderbook {
             callback_info_len,
             callback_id_len,
             fee_budget: 0,
-            initial_lamports: market_state.to_account_info().lamports(),
+            initial_lamports: ctx.accounts.market.to_account_info().lamports(),
             min_base_order_size,
             tick_size,
             cranker_reward,
@@ -81,7 +81,7 @@ pub mod anchor_agnostic_orderbook {
         post_allowed: bool,
         self_trade_behavior: u8,
     ) -> ProgramResult {
-        let market_state = &mut ctx.accounts.market;
+        let market_state = &mut ctx.accounts.market.load_mut()?;
         let side = Side::from_u8(side).ok_or(AoError::FailedToDeserialize)?;
         let self_trade_behavior =
             SelfTradeBehavior::from_u8(self_trade_behavior).ok_or(AoError::FailedToDeserialize)?;
@@ -150,7 +150,7 @@ pub mod anchor_agnostic_orderbook {
 
         // Verify that fees were transfered. Fees are expected to be transfered by the caller
         // program in order to reduce the CPI call stack depth.
-        if market_state.to_account_info().lamports() - market_state.initial_lamports
+        if ctx.accounts.market.to_account_info().lamports() - market_state.initial_lamports
             < market_state
                 .fee_budget
                 .checked_add(market_state.cranker_reward)
@@ -160,14 +160,14 @@ pub mod anchor_agnostic_orderbook {
             return Err(AoError::FeeNotPayed.into());
         }
         market_state.fee_budget =
-            market_state.to_account_info().lamports() - market_state.initial_lamports;
+            ctx.accounts.market.to_account_info().lamports() - market_state.initial_lamports;
         order_book.release(&ctx.accounts.bids, &ctx.accounts.asks);
 
         Ok(())
     }
 
     pub fn cancel_order(ctx: Context<CancelOrder>, order_id: u128) -> ProgramResult {
-        let market_state = &mut ctx.accounts.market;
+        let market_state = &mut ctx.accounts.market.load_mut()?;
         let callback_info_len = market_state.callback_info_len as usize;
 
         let mut order_book = OrderBookState::new(
@@ -210,7 +210,7 @@ pub mod anchor_agnostic_orderbook {
         ctx: Context<ConsumeEvents>,
         number_of_entries_to_consume: u64,
     ) -> ProgramResult {
-        let market_state = &mut ctx.accounts.market;
+        let market_state = &mut ctx.accounts.market.load_mut()?;
 
         let header = {
             let mut event_queue_data: &[u8] =
@@ -250,7 +250,7 @@ pub mod anchor_agnostic_orderbook {
     }
 
     pub fn close_market(ctx: Context<CloseMarket>) -> ProgramResult {
-        let market_state = &mut ctx.accounts.market;
+        let market_state = &mut ctx.accounts.market.load_mut()?;
 
         // Check if there are still orders in the book
         let orderbook_state = OrderBookState::new(
@@ -307,7 +307,7 @@ pub mod anchor_agnostic_orderbook {
 pub struct CreateMarket<'info> {
     // TODO PDAs?
     #[account(init, payer = payer)]
-    pub market: Account<'info, MarketState>,
+    pub market: AccountLoader<'info, MarketState>,
     // TODO pass in space size instead of just max
     #[account(init, payer = payer, space = 10240)]
     pub event_queue: AccountInfo<'info>,
@@ -328,7 +328,7 @@ pub struct CreateMarket<'info> {
 #[derive(Accounts)]
 pub struct NewOrder<'info> {
     #[account(mut)]
-    pub market: Account<'info, MarketState>,
+    pub market: AccountLoader<'info, MarketState>,
     #[account(mut)]
     pub event_queue: AccountInfo<'info>,
     #[account(mut)]
@@ -342,7 +342,7 @@ pub struct NewOrder<'info> {
 #[derive(Accounts)]
 pub struct CancelOrder<'info> {
     #[account(mut)]
-    pub market: Account<'info, MarketState>,
+    pub market: AccountLoader<'info, MarketState>,
     #[account(mut)]
     pub event_queue: AccountInfo<'info>,
     #[account(mut)]
@@ -355,7 +355,7 @@ pub struct CancelOrder<'info> {
 
 #[derive(Accounts)]
 pub struct ConsumeEvents<'info> {
-    pub market: Account<'info, MarketState>,
+    pub market: AccountLoader<'info, MarketState>,
     #[account(mut)]
     pub event_queue: AccountInfo<'info>,
     #[account(mut)]
@@ -366,7 +366,7 @@ pub struct ConsumeEvents<'info> {
 #[derive(Accounts)]
 pub struct CloseMarket<'info> {
     #[account(mut)]
-    pub market: Account<'info, MarketState>,
+    pub market: AccountLoader<'info, MarketState>,
     #[account(mut)]
     pub event_queue: AccountInfo<'info>,
     #[account(mut)]
@@ -378,115 +378,3 @@ pub struct CloseMarket<'info> {
     #[account(mut)]
     pub lamports_target_account: Signer<'info>,
 }
-
-/// TODO zero-copy. this currently delegates to Borsh
-///
-/// This is to solve the problem of:
-/// How can I implement Anchor traits on a type `T` without modifying `T` itself? (i.e. attaching
-/// `derive` macros)
-///
-/// The "wrapper type" pattern is done in Anchor's own codebase.
-///
-/// See how Anchor does this pattern in their `spl` wrappers here:
-/// https://github.com/project-serum/anchor/blob/master/spl/src/token.rs#L306
-///
-/// See this PR comment for more details and thinking about the trade-offs (vs. modifying orderbook
-/// data structures directly):
-/// https://github.com/foonetic/agnostic-orderbook/pull/10#issuecomment-1038329572
-///
-/// Important! This isn't generally possible, because of Rust's orphan rule
-#[derive(Clone, Default)]
-pub struct MarketState(aob::state::MarketState);
-
-impl MarketState {
-    pub const LEN: usize = MARKET_STATE_LEN;
-}
-
-impl Deref for MarketState {
-    type Target = aob::state::MarketState;
-
-    fn deref(&self) -> &Self::Target {
-        &self.0
-    }
-}
-
-impl DerefMut for MarketState {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.0
-    }
-}
-
-// AccountDeserialize delegates to AnchorDeserialize (which delegates to Borsh)
-impl AccountDeserialize for MarketState {
-    fn try_deserialize_unchecked(buf: &mut &[u8]) -> Result<Self, ProgramError> {
-        AnchorDeserialize::deserialize(buf).map_err(|e| ProgramError::InvalidAccountData)
-    }
-}
-
-impl AccountSerialize for MarketState {
-    fn try_serialize<W: Write>(&self, _writer: &mut W) -> Result<(), ProgramError> {
-        self.serialize(_writer)
-            .map_err(|e| ProgramError::BorshIoError(e.to_string()))
-    }
-}
-
-impl AnchorSerialize for MarketState {
-    fn serialize<W: Write>(&self, writer: &mut W) -> std::io::Result<()> {
-        self.0.serialize(writer)
-    }
-}
-
-impl AnchorDeserialize for MarketState {
-    fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
-        aob::state::MarketState::deserialize(buf).map(|market_state| MarketState(market_state))
-    }
-}
-
-impl Owner for MarketState {
-    fn owner() -> Pubkey {
-        crate::id()
-    }
-}
-
-// #[account(zero_copy)]
-// #[derive(Debug, Default)]
-// #[repr(transparent)]
-// pub struct MarketState {
-//     market_state: aob::state::MarketState,
-// }
-//
-// impl Deref for MarketState {
-//     type Target = aob::state::MarketState;
-//
-//     fn deref(&self) -> &Self::Target {
-//         &self.0
-//     }
-// }
-//
-// impl DerefMut for MarketState {
-//     fn deref_mut(&mut self) -> &mut Self::Target {
-//         &mut self.0
-//     }
-// }
-//
-// impl AccountDeserialize for &mut MarketState {
-//     fn try_deserialize_unchecked<'a, 'b>(
-//         buf: &'a mut &'b [u8],
-//     ) -> Result<&'b mut Self, PodCastError> {
-//         try_from_bytes_mut::<MarketState>(&mut buf[0..aob::state::MarketState::LEN])
-//     }
-// }
-//
-// impl Owner for MarketState {
-//     fn owner() -> Pubkey {
-//         ID
-//     }
-// }
-//
-// impl Discriminator for MarketState {
-//     fn discriminator() -> [u8; 8] {
-//         [1, 2, 3, 4, 5, 6, 7, 8]  // TODO right way to do this
-//     }
-// }
-//
-// impl ZeroCopy for MarketState {}

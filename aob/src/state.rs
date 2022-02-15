@@ -9,7 +9,7 @@ use std::{
 use anchor_lang::prelude::*;
 use bonfida_utils::BorshSize;
 use borsh::{BorshDeserialize, BorshSerialize};
-use bytemuck::{Pod, try_from_bytes_mut, Zeroable};
+use bytemuck::{try_from_bytes_mut, Pod, Zeroable};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 use solana_program::{
@@ -17,7 +17,7 @@ use solana_program::{
 };
 
 use crate::critbit::IoError;
-pub use crate::orderbook::{ORDER_SUMMARY_SIZE, OrderSummary};
+pub use crate::orderbook::{OrderSummary, ORDER_SUMMARY_SIZE};
 #[cfg(feature = "no-entrypoint")]
 pub use crate::utils::get_spread;
 
@@ -71,7 +71,9 @@ impl Side {
 }
 
 /// Describes what happens when two order with identical callback informations are matched together
-#[derive(BorshDeserialize, BorshSerialize, Clone, PartialEq, FromPrimitive, ToPrimitive, BorshSize)]
+#[derive(
+    BorshDeserialize, BorshSerialize, Clone, PartialEq, FromPrimitive, ToPrimitive, BorshSize,
+)]
 #[repr(u8)]
 pub enum SelfTradeBehavior {
     /// The orders are matched together
@@ -85,7 +87,8 @@ pub enum SelfTradeBehavior {
 
 /// The orderbook market's central state
 /// TODO zero-copy for Anchor
-#[derive(BorshDeserialize, BorshSerialize, Debug, Copy, Clone, Default, Pod, Zeroable)]
+#[account(zero_copy)]
+#[derive(Debug, Default)]
 #[repr(C)]
 pub struct MarketState {
     /// Identifies the account as a [`MarketState`] object.
