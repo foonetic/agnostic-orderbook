@@ -17,4 +17,4 @@ jobs:
 
 defaults:
   run:
-    working-directory: program
+    working-directory: anchor

@@ -1,7 +1,7 @@
-use bonfida_utils::BorshSize;
 use borsh::{BorshDeserialize, BorshSerialize};
+use bonfida_utils::BorshSize;
 
-use crate::state::{SelfTradeBehavior, Side};
+use crate::aob::state::{SelfTradeBehavior, Side};
 
 #[derive(BorshDeserialize, BorshSerialize, BorshSize)]
 /**

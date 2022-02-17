@@ -1,14 +1,13 @@
-use solana_program::{
+use anchor_lang::solana_program::{
     account_info::AccountInfo, entrypoint::ProgramResult, program_error::ProgramError,
 };
 
-use crate::{
+#[cfg(feature = "no-entrypoint")]
+use crate::aob::{orderbook::OrderBookState, state::MarketState};
+use crate::aob::{
     error::{AoError, AoResult},
     state::Side,
 };
-
-#[cfg(feature = "no-entrypoint")]
-use crate::{orderbook::OrderBookState, state::MarketState};
 
 #[allow(dead_code)]
 #[cfg(not(debug_assertions))]

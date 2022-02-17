@@ -33,10 +33,12 @@ describe('anchor-agnostic-orderbook', () => {
         .signers([market, eventQueue, bids, asks])
         .rpc()
     console.log('create market', tx);
+    console.log(program.account)
+    console.log(await getProvider().connection.getAccountInfo(market.publicKey));
   });
 
-  it('new bid', async() => {
-    const tx = await program.methods
+  it('new bid', async () => {
+    const tx2 = await program.methods
         .newOrder(
             new BN(1000),
             new BN(1000),
@@ -56,11 +58,11 @@ describe('anchor-agnostic-orderbook', () => {
           authority: getProvider().wallet.publicKey,
         })
         .rpc()
-    console.log('new bid', tx);
+    console.log('new bid', tx2);
   })
 
-  it('new ask', async() => {
-    const tx = await program.methods
+  it('new ask', async () => {
+    const tx3 = await program.methods
         .newOrder(
             new BN(1100),
             new BN(1100),
@@ -80,27 +82,28 @@ describe('anchor-agnostic-orderbook', () => {
           authority: getProvider().wallet.publicKey,
         })
         .rpc()
-    console.log('new ask', tx);
-
-    console.log(program.account.market);
   })
 
-  // it('new cancel', async() => {
-  //   const tx = await program.methods
-  //       .cancelOrder(
-  //           1
-  //       )
-  //       .accounts({
-  //         market: market.publicKey,
-  //         eventQueue: eventQueue.publicKey,
-  //         bids: bids.publicKey,
-  //         asks: asks.publicKey,
-  //         authority: getProvider().wallet.publicKey,
-  //       })
-  //       .rpc()
-  //   console.log('new ask', tx);
-  // })
-  //
+  it('consume events', async () => {
+    console.log(await program.account.eventQueue.fetch(eventQueue.publicKey));
+  })
+
+  it('new cancel', async () => {
+    const tx = await program.methods
+        .cancelOrder(
+            new BN(1)
+        )
+        .accounts({
+          market: market.publicKey,
+          eventQueue: eventQueue.publicKey,
+          bids: bids.publicKey,
+          asks: asks.publicKey,
+          authority: getProvider().wallet.publicKey,
+        })
+        .rpc()
+    console.log('new cancel', tx);
+  })
+
   // it('consume events', async() => {
   //   const tx = await program.methods.consume
   //   const eventQueueAccount = await program.account.eventQueue.fetch(eventQueue.publicKey);
