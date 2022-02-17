@@ -1,27 +1,27 @@
 use std::{
-    cell::{RefCell, RefMut},
+    cell::{RefMut},
     convert::TryInto,
     io::Write,
     mem::size_of,
-    rc::Rc,
 };
 
 use anchor_lang::prelude::*;
 use bonfida_utils::BorshSize;
 use borsh::{BorshDeserialize, BorshSerialize};
-use bytemuck::{try_from_bytes_mut, Pod, Zeroable};
+use bytemuck::{try_from_bytes_mut};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
-use solana_program::{
+use anchor_lang::solana_program::{
     account_info::AccountInfo, entrypoint::ProgramResult, msg, program_error::ProgramError,
 };
 
-use crate::critbit::IoError;
-pub use crate::orderbook::{OrderSummary, ORDER_SUMMARY_SIZE};
+use crate::aob::critbit::IoError;
+pub use crate::aob::orderbook::{OrderSummary, ORDER_SUMMARY_SIZE};
 #[cfg(feature = "no-entrypoint")]
-pub use crate::utils::get_spread;
+pub use crate::aob::utils::get_spread;
 
-#[derive(BorshDeserialize, BorshSerialize, Copy, Clone, Debug, PartialEq)]
+#[derive(AnchorSerialize, AnchorDeserialize, Copy, Clone, Debug, PartialEq)]
+// #[account]
 #[allow(missing_docs)]
 #[repr(u8)]
 pub enum AccountTag {
@@ -250,14 +250,15 @@ impl Event {
 // Event Queue
 
 /// Describes the current state of the event queue
-#[derive(BorshDeserialize, BorshSerialize, Clone)]
+#[derive(AnchorSerialize, AnchorDeserialize, Copy, Clone, Debug, PartialEq)]
+#[repr(C)]
 pub struct EventQueueHeader {
-    tag: AccountTag, // Initialized, EventQueue
-    head: u64,
+    pub tag: AccountTag, // Initialized, EventQueue
+    pub head: u64,
     /// The current event queue length
     pub count: u64,
-    event_size: u64,
-    seq_num: u64,
+    pub event_size: u64,
+    pub seq_num: u64,
 }
 #[allow(missing_docs)]
 pub const EVENT_QUEUE_HEADER_LEN: usize = 37;
@@ -265,14 +266,9 @@ pub const EVENT_QUEUE_HEADER_LEN: usize = 37;
 pub const REGISTER_SIZE: usize = ORDER_SUMMARY_SIZE as usize + 1; // Option<OrderSummary>
 
 impl EventQueueHeader {
-    pub fn initialize(callback_info_len: usize) -> Self {
-        Self {
-            tag: AccountTag::EventQueue,
-            head: 0,
-            count: 0,
-            event_size: Event::compute_slot_size(callback_info_len) as u64,
-            seq_num: 0,
-        }
+    pub fn initialize(&mut self, callback_info_len: u64) {
+        self.tag = AccountTag::EventQueue;
+        self.event_size = Event::compute_slot_size(callback_info_len as usize) as u64;
     }
 
     pub fn check(self) -> Result<Self, ProgramError> {
@@ -287,55 +283,18 @@ impl EventQueueHeader {
 /// and a circular buffer of serialized events.
 ///
 /// This struct is used at runtime but doesn't represent a serialized event queue
-pub struct EventQueue<'a> {
+#[account]
+#[derive(Debug)]
+pub struct EventQueue {
     pub header: EventQueueHeader,
-    pub(crate) buffer: Rc<RefCell<&'a mut [u8]>>, //The whole account data
-    callback_info_len: usize,
+    pub buffer: [u8; 512], //The whole account data
+    pub callback_info_len: u64,
 }
 
 /// The event queue register can hold arbitrary data returned by the AAOB. Currently only used to return [`OrderSummary`] objects.
 pub type Register<T> = Option<T>;
 
-impl<'a> EventQueue<'a> {
-    pub fn new_safe(
-        header: EventQueueHeader,
-        account: &AccountInfo<'a>,
-        callback_info_len: usize,
-    ) -> Result<Self, ProgramError> {
-        let q = Self {
-            header: header.check()?,
-            buffer: Rc::clone(&account.data),
-            callback_info_len,
-        };
-        q.clear_register();
-        Ok(q)
-    }
-
-    /// Initialize a new EventQueue object.
-    ///
-    /// Within a CPI context, the account parameter can be supplied through
-    /// ```ignore
-    /// use std::rc::Rc;
-    /// let a: AccountInfo;
-    ///
-    /// let event_queue_header = EventQueueHeader::deserialize(&mut &a.data.borrow()[..EVENT_QUEUE_HEADER_LEN]).unwrap();
-    /// let event_queue = EventQueue::new(event_queue_header, Rc::clone(&a.data), callback_info_len);
-    ///
-    /// ```
-    pub fn new(
-        header: EventQueueHeader,
-        account: Rc<RefCell<&'a mut [u8]>>,
-        callback_info_len: usize,
-    ) -> Self {
-        Self {
-            header,
-            buffer: account,
-            callback_info_len,
-        }
-    }
-}
-
-impl<'a> EventQueue<'a> {
+impl EventQueue {
     pub fn check_buffer_size(account: &AccountInfo, callback_info_len: u64) -> ProgramResult {
         let event_size = Event::compute_slot_size(callback_info_len as usize);
         if (account.data_len() - EVENT_QUEUE_HEADER_LEN - REGISTER_SIZE) % event_size != 0 {
@@ -362,7 +321,7 @@ impl<'a> EventQueue<'a> {
     }
 
     pub(crate) fn get_buf_len(&self) -> usize {
-        self.buffer.borrow().len() - EVENT_QUEUE_HEADER_LEN - REGISTER_SIZE
+        self.buffer.len() - EVENT_QUEUE_HEADER_LEN - REGISTER_SIZE
     }
 
     pub(crate) fn full(&self) -> bool {
@@ -378,7 +337,7 @@ impl<'a> EventQueue<'a> {
             + (((self.header.head + self.header.count * self.header.event_size) as usize)
                 % self.get_buf_len());
         let mut queue_event_data =
-            &mut self.buffer.borrow_mut()[offset..offset + (self.header.event_size as usize)];
+            &mut self.buffer[offset..offset + (self.header.event_size as usize)];
         event.serialize(&mut queue_event_data).unwrap();
 
         self.header.count += 1;
@@ -403,9 +362,8 @@ impl<'a> EventQueue<'a> {
             .unwrap()) as usize
             % self.get_buf_len())
             + header_offset;
-        let mut event_data =
-            &self.buffer.borrow()[offset..offset + (self.header.event_size as usize)];
-        Some(Event::deserialize(&mut event_data, self.callback_info_len))
+        let mut event_data = &self.buffer[offset..offset + (self.header.event_size as usize)];
+        Some(Event::deserialize(&mut event_data, self.callback_info_len as usize))
     }
 
     /// Pop n entries from the event queue
@@ -418,15 +376,15 @@ impl<'a> EventQueue<'a> {
             % self.get_buf_len() as u64;
     }
 
-    pub fn write_to_register<T: BorshSerialize + BorshDeserialize>(&self, object: T) {
-        let mut register = &mut self.buffer.borrow_mut()
-            [EVENT_QUEUE_HEADER_LEN..EVENT_QUEUE_HEADER_LEN + (REGISTER_SIZE)];
+    pub fn write_to_register<T: BorshSerialize + BorshDeserialize>(&mut self, object: T) {
+        let mut register =
+            &mut self.buffer[EVENT_QUEUE_HEADER_LEN..EVENT_QUEUE_HEADER_LEN + (REGISTER_SIZE)];
         Register::Some(object).serialize(&mut register).unwrap();
     }
 
-    pub(crate) fn clear_register(&self) {
-        let mut register = &mut self.buffer.borrow_mut()
-            [EVENT_QUEUE_HEADER_LEN..EVENT_QUEUE_HEADER_LEN + (REGISTER_SIZE)];
+    pub fn clear_register(&mut self) {
+        let mut register =
+            &mut self.buffer[EVENT_QUEUE_HEADER_LEN..EVENT_QUEUE_HEADER_LEN + (REGISTER_SIZE)];
         Register::<u8>::None.serialize(&mut register).unwrap();
     }
 
@@ -437,7 +395,7 @@ impl<'a> EventQueue<'a> {
         &self,
     ) -> Result<Register<T>, IoError> {
         let mut register =
-            &self.buffer.borrow()[EVENT_QUEUE_HEADER_LEN..EVENT_QUEUE_HEADER_LEN + (REGISTER_SIZE)];
+            &self.buffer[EVENT_QUEUE_HEADER_LEN..EVENT_QUEUE_HEADER_LEN + (REGISTER_SIZE)];
         Register::deserialize(&mut register)
     }
 

@@ -1,23 +1,24 @@
-use borsh::{BorshDeserialize, BorshSerialize};
-use solana_program::{account_info::AccountInfo, msg};
+use anchor_lang::solana_program::{account_info::AccountInfo, msg};
 
-use crate::error::AoResult;
-use crate::params::NewOrderParams;
-use crate::state::AccountTag;
-use crate::{
+use borsh::{BorshDeserialize, BorshSerialize};
+
+use crate::aob::error::AoResult;
+use crate::aob::params::NewOrderParams;
+use crate::aob::state::AccountTag;
+use crate::aob::{
     critbit::{LeafNode, Node, NodeHandle, Slab},
     error::AoError,
     state::{Event, EventQueue, SelfTradeBehavior, Side},
     utils::{fp32_div, fp32_mul},
 };
 
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
 /// This struct is written back into the event queue's register after new_order or cancel_order.
 ///
 /// In the case of a new order, the quantities describe the total order amounts which
 /// were either matched against other orders or written into the orderbook.
 ///
 /// In the case of an order cancellation, the quantities describe what was left of the order in the orderbook.
+#[derive(BorshSerialize, BorshDeserialize, Debug)]
 pub struct OrderSummary {
     /// When applicable, the order id of the newly created order.
     pub posted_order_id: Option<u128>,
