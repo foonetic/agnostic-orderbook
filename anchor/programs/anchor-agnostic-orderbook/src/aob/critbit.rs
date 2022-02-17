@@ -1,17 +1,16 @@
-use anchor_lang::prelude::*;
 use std::convert::identity;
 use std::convert::TryInto;
 
+use anchor_lang::prelude::*;
+use anchor_lang::solana_program::account_info::AccountInfo;
+use anchor_lang::solana_program::pubkey::Pubkey;
 use borsh::{BorshDeserialize, BorshSerialize};
-use bytemuck::{try_from_bytes, try_from_bytes_mut, Pod, Zeroable};
+use bytemuck::{Pod, try_from_bytes, try_from_bytes_mut, Zeroable};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use solana_program::account_info::AccountInfo;
-use solana_program::pubkey::Pubkey;
 
-use crate::error::AoError::FailedToDeserialize;
-use crate::error::{AoError, AoResult};
-use crate::state::AccountTag;
+use crate::aob::error::{AoError, AoResult};
+use crate::aob::state::AccountTag;
 
 // A Slab contains the data for a slab header and an array of nodes of a critbit tree
 // whose leafs contain the data referencing an order of the orderbook.
@@ -216,7 +215,7 @@ impl<'a> Slab<'a> {
 
     pub fn new(buffer: &'a mut [u8], callback_info_len: usize) -> AoResult<Self> {
         let header = SlabHeader::deserialize(&mut (buffer as &[u8]))
-            .map_err(|_| FailedToDeserialize)?;
+            .map_err(|_| AoError::FailedToDeserialize)?;
         let slab = Self {
             header,
             buffer,
@@ -918,7 +917,7 @@ mod tests {
 
     use super::*;
 
-    // #[test]
+// #[test]
     // fn test_node_serialization() {
     //     let mut rng = StdRng::seed_from_u64(42);
     //     let mut bytes = [0u8; 100];

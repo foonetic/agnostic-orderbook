@@ -1,7 +1,7 @@
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
-use solana_program::program_error::PrintProgramError;
-use solana_program::{decode_error::DecodeError, msg, program_error::ProgramError};
+use anchor_lang::solana_program::program_error::PrintProgramError;
+use anchor_lang::solana_program::{decode_error::DecodeError, msg, program_error::ProgramError};
 use thiserror::Error;
 
 pub type AoResult<T = ()> = Result<T, AoError>;
