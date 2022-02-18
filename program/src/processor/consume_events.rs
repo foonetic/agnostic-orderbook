@@ -12,7 +12,7 @@ use solana_program::{
 use aob::params::ConsumeEventsParams;
 use aob::{
     error::AoError,
-    state::{EventQueue, EventQueueHeader, MarketState, EVENT_QUEUE_HEADER_LEN},
+    state::{EventQueue, EventQueueHeader, MarketState},
     utils::{check_account_key, check_account_owner, check_signer},
 };
 
@@ -80,7 +80,7 @@ pub fn process<'a, 'b: 'a>(
 
     let header = {
         let mut event_queue_data: &[u8] =
-            &accounts.event_queue.data.borrow()[0..EVENT_QUEUE_HEADER_LEN];
+            &accounts.event_queue.data.borrow()[0..EventQueueHeader::LEN];
         EventQueueHeader::deserialize(&mut event_queue_data).unwrap()
     };
     let mut event_queue = EventQueue::new_safe(

@@ -14,7 +14,7 @@ use aob::{
     orderbook::{OrderBookState, OrderSummary},
     params::CancelOrderParams,
     state::{
-        get_side_from_order_id, EventQueue, EventQueueHeader, MarketState, EVENT_QUEUE_HEADER_LEN,
+        get_side_from_order_id, EventQueue, EventQueueHeader, MarketState,
     },
     utils::{check_account_key, check_account_owner, check_signer, fp32_mul},
 };
@@ -94,7 +94,7 @@ pub fn process(
 
     let header = {
         let mut event_queue_data: &[u8] =
-            &accounts.event_queue.data.borrow()[0..EVENT_QUEUE_HEADER_LEN];
+            &accounts.event_queue.data.borrow()[0..EventQueueHeader::LEN];
         EventQueueHeader::deserialize(&mut event_queue_data).unwrap()
     };
     let event_queue = EventQueue::new_safe(header, accounts.event_queue, callback_info_len)?;
