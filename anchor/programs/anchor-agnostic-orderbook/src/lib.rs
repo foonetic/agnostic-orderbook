@@ -1,23 +1,20 @@
 use std::ops::DerefMut;
 
-
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::log::sol_log_compute_units;
 use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
-
 use num_traits::FromPrimitive;
 
 use crate::aob::critbit::Slab;
 use crate::aob::error::AoError;
-
 use crate::aob::orderbook::OrderBookState;
 use crate::aob::orderbook::OrderSummary;
 use crate::aob::params::NewOrderParams;
-use crate::aob::state::get_side_from_order_id;
 use crate::aob::state::{AccountTag, MarketState};
-use crate::aob::state::{EventQueue};
+use crate::aob::state::EventQueue;
 use crate::aob::state::{SelfTradeBehavior, Side};
+use crate::aob::state::get_side_from_order_id;
 use crate::aob::utils::fp32_mul;
 use crate::aob::utils::round_price;
 
@@ -39,7 +36,7 @@ pub mod anchor_agnostic_orderbook {
         cranker_reward: u64,
     ) -> ProgramResult {
         let market_state = &mut ctx.accounts.market.load_init()?;
-        *market_state.deref_mut() = crate::aob::state::MarketState {
+        **market_state = crate::aob::state::MarketState {
             tag: AccountTag::Market as u64,
             caller_authority: caller_authority.to_bytes(),
             event_queue: ctx.accounts.event_queue.key().to_bytes(),
@@ -54,10 +51,8 @@ pub mod anchor_agnostic_orderbook {
             cranker_reward,
         };
 
-        let header = &mut ctx.accounts.event_queue.header;
-        header.initialize(callback_info_len);
-        let account_info = &mut ctx.accounts.event_queue.to_account_info();
-        msg!("{:?}", account_info.data.borrow_mut());
+        let event_queue = &mut ctx.accounts.event_queue.load_init()?;
+        event_queue.header.initialize(callback_info_len);
 
         Slab::initialize(
             &ctx.accounts.bids.to_account_info(),
@@ -82,7 +77,7 @@ pub mod anchor_agnostic_orderbook {
         post_allowed: bool,
         self_trade_behavior: u8,
     ) -> ProgramResult {
-        let market_state = &mut ctx.accounts.market.load_mut()?;
+        let mut market_state = ctx.accounts.market.load_mut()?;
         let side = Side::from_u8(side).ok_or(AoError::FailedToDeserialize)?;
         let self_trade_behavior =
             SelfTradeBehavior::from_u8(self_trade_behavior).ok_or(AoError::FailedToDeserialize)?;
@@ -106,7 +101,7 @@ pub mod anchor_agnostic_orderbook {
 
         msg!("New Order: Creating event queue");
         sol_log_compute_units();
-        let event_queue = &mut ctx.accounts.event_queue;
+        let mut event_queue = ctx.accounts.event_queue.load_mut()?;
         sol_log_compute_units();
 
         msg!("New Order: Creating new order");
@@ -123,19 +118,14 @@ pub mod anchor_agnostic_orderbook {
                 post_allowed,
                 self_trade_behavior,
             },
-            event_queue,
+            &mut event_queue,
             market_state.min_base_order_size,
         )?;
         sol_log_compute_units();
         msg!("Order summary : {:?}", order_summary);
         event_queue.write_to_register(order_summary);
 
-        let account_info = event_queue.to_account_info();
-        let mut event_queue_header_data: &mut [u8] = &mut account_info.data.borrow_mut();
-        event_queue
-            .header
-            .serialize(&mut event_queue_header_data)
-            .unwrap();
+        let account_info = ctx.accounts.event_queue.to_account_info();
         msg!("Committing changes");
         sol_log_compute_units();
         order_book.commit_changes();
@@ -160,7 +150,7 @@ pub mod anchor_agnostic_orderbook {
     }
 
     pub fn cancel_order(ctx: Context<CancelOrder>, order_id: u128) -> ProgramResult {
-        let market_state = &mut ctx.accounts.market.load_mut()?;
+        let mut market_state = &mut ctx.accounts.market.load_mut()?;
         let _callback_info_len = market_state.callback_info_len as usize;
 
         let mut order_book = OrderBookState::new(
@@ -183,7 +173,7 @@ pub mod anchor_agnostic_orderbook {
             total_base_qty_posted: 0,
         };
 
-        let event_queue = &mut ctx.accounts.event_queue;
+        let event_queue = &mut ctx.accounts.event_queue.load_mut()?;
         event_queue.write_to_register(order_summary);
 
         order_book.commit_changes();
@@ -199,7 +189,7 @@ pub mod anchor_agnostic_orderbook {
         let market_state = &mut ctx.accounts.market.load_mut()?;
 
         // Reward payout
-        let event_queue = &mut ctx.accounts.event_queue;
+        let event_queue = &mut ctx.accounts.event_queue.load_mut()?;
         let capped_number_of_entries_consumed =
             std::cmp::min(event_queue.header.count, number_of_entries_to_consume);
         let reward = (market_state.fee_budget * capped_number_of_entries_consumed)
@@ -213,11 +203,10 @@ pub mod anchor_agnostic_orderbook {
         **reward_target_account.try_borrow_mut_lamports()? += reward;
 
         // Pop Events
-        let event_queue = &mut ctx.accounts.event_queue;
         event_queue.pop_n(number_of_entries_to_consume);
-        let event_queue_account = event_queue.to_account_info();
+        let event_queue_account = ctx.accounts.event_queue.to_account_info();
         let mut event_queue_data: &mut [u8] = &mut event_queue_account.data.borrow_mut();
-        event_queue.header.serialize(&mut event_queue_data).unwrap();
+        // event_queue.header.serialize(&mut event_queue_data).unwrap();
 
         msg!(
             "Number of events consumed: {:?}",
@@ -243,7 +232,7 @@ pub mod anchor_agnostic_orderbook {
             return Err(ProgramError::from(AoError::MarketStillActive));
         }
 
-        let event_queue = &ctx.accounts.event_queue;
+        let event_queue = &ctx.accounts.event_queue.load_mut()?;
         // Check if all events have been processed
         if event_queue.header.count != 0 {
             msg!("The event queue needs to be empty");
@@ -277,14 +266,16 @@ pub mod anchor_agnostic_orderbook {
     }
 }
 
+const SPACE: usize = 8 + std::mem::size_of::<EventQueue>();
+
 #[derive(Accounts)]
 pub struct CreateMarket<'info> {
     // TODO PDAs?
     #[account(init, payer = payer)]
     pub market: AccountLoader<'info, MarketState>,
     // TODO pass in space size instead of just max
-    #[account(init, payer = payer, space = 8 + 591)]
-    pub event_queue: Account<'info, EventQueue>,
+    #[account(init, payer = payer, space = 8 + SPACE)]
+    pub event_queue: AccountLoader<'info, EventQueue>,
     // TODO it would be nicer to parameterize with the actual types `T` instead of the `AccountInfo`
     // escape hatch.
     //
@@ -304,7 +295,7 @@ pub struct NewOrder<'info> {
     #[account(mut)]
     pub market: AccountLoader<'info, MarketState>,
     #[account(mut)]
-    pub event_queue: Account<'info, EventQueue>,
+    pub event_queue: AccountLoader<'info, EventQueue>,
     #[account(mut)]
     pub bids: AccountInfo<'info>,
     #[account(mut)]
@@ -318,7 +309,7 @@ pub struct CancelOrder<'info> {
     #[account(mut)]
     pub market: AccountLoader<'info, MarketState>,
     #[account(mut)]
-    pub event_queue: Account<'info, EventQueue>,
+    pub event_queue: AccountLoader<'info, EventQueue>,
     #[account(mut)]
     pub bids: AccountInfo<'info>,
     #[account(mut)]
@@ -331,7 +322,7 @@ pub struct CancelOrder<'info> {
 pub struct ConsumeEvents<'info> {
     pub market: AccountLoader<'info, MarketState>,
     #[account(mut)]
-    pub event_queue: Account<'info, EventQueue>,
+    pub event_queue: AccountLoader<'info, EventQueue>,
     #[account(mut)]
     pub authority: Signer<'info>,
     pub reward_target: AccountInfo<'info>,
@@ -342,7 +333,7 @@ pub struct CloseMarket<'info> {
     #[account(mut)]
     pub market: AccountLoader<'info, MarketState>,
     #[account(mut)]
-    pub event_queue: Account<'info, EventQueue>,
+    pub event_queue: AccountLoader<'info, EventQueue>,
     #[account(mut)]
     pub bids: AccountInfo<'info>,
     #[account(mut)]
