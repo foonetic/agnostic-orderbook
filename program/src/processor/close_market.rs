@@ -3,7 +3,7 @@ use aob::params::CloseMarketParams;
 use aob::{
     error::AoError,
     orderbook::OrderBookState,
-    state::{AccountTag, EventQueueHeader, MarketState, EVENT_QUEUE_HEADER_LEN},
+    state::{AccountTag, EventQueueHeader, MarketState},
     utils::{check_account_key, check_account_owner, check_signer},
 };
 use bonfida_utils::InstructionsAccount;
@@ -91,7 +91,7 @@ pub fn process(
     // Check if all events have been processed
     let header = {
         let mut event_queue_data: &[u8] =
-            &accounts.event_queue.data.borrow()[0..EVENT_QUEUE_HEADER_LEN];
+            &accounts.event_queue.data.borrow()[0..EventQueueHeader::LEN];
         EventQueueHeader::deserialize(&mut event_queue_data).unwrap()
     };
     if header.count != 0 {

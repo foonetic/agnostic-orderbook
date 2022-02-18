@@ -150,9 +150,7 @@ pub mod anchor_agnostic_orderbook {
     }
 
     pub fn cancel_order(ctx: Context<CancelOrder>, order_id: u128) -> ProgramResult {
-        let mut market_state = &mut ctx.accounts.market.load_mut()?;
-        let _callback_info_len = market_state.callback_info_len as usize;
-
+        let market_state = &mut ctx.accounts.market.load_mut()?;
         let mut order_book = OrderBookState::new(
             &ctx.accounts.bids,
             &ctx.accounts.asks,
@@ -204,9 +202,6 @@ pub mod anchor_agnostic_orderbook {
 
         // Pop Events
         event_queue.pop_n(number_of_entries_to_consume);
-        let event_queue_account = ctx.accounts.event_queue.to_account_info();
-        let mut event_queue_data: &mut [u8] = &mut event_queue_account.data.borrow_mut();
-        // event_queue.header.serialize(&mut event_queue_data).unwrap();
 
         msg!(
             "Number of events consumed: {:?}",
