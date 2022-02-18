@@ -250,8 +250,8 @@ impl Event {
 // Event Queue
 
 /// Describes the current state of the event queue
-#[derive(AnchorSerialize, AnchorDeserialize, Copy, Clone, Debug, PartialEq)]
-#[repr(C)]
+#[zero_copy]
+#[derive(Debug)]
 pub struct EventQueueHeader {
     pub tag: AccountTag, // Initialized, EventQueue
     pub head: u64,
@@ -283,11 +283,11 @@ impl EventQueueHeader {
 /// and a circular buffer of serialized events.
 ///
 /// This struct is used at runtime but doesn't represent a serialized event queue
-#[account]
+#[account(zero_copy)]
 #[derive(Debug)]
 pub struct EventQueue {
     pub header: EventQueueHeader,
-    pub buffer: [u8; 512], //The whole account data
+    pub buffer: [u8; 1024],
     pub callback_info_len: u64,
 }
 
