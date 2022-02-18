@@ -254,7 +254,6 @@ impl Event {
 #[derive(Debug)]
 #[repr(C, packed)]
 pub struct EventQueueHeader {
-    pub tag: AccountTag, // Initialized, EventQueue
     pub head: u64,
     /// The current event queue length
     pub count: u64,
@@ -268,15 +267,7 @@ impl EventQueueHeader {
     pub const LEN: usize = size_of::<EventQueueHeader>();
 
     pub fn initialize(&mut self, callback_info_len: u64) {
-        self.tag = AccountTag::EventQueue;
         self.event_size = Event::compute_slot_size(callback_info_len as usize) as u64;
-    }
-
-    pub fn check(self) -> Result<Self, ProgramError> {
-        if self.tag != AccountTag::EventQueue {
-            return Err(ProgramError::InvalidAccountData);
-        };
-        Ok(self)
     }
 }
 
