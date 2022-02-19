@@ -13,7 +13,7 @@ describe('anchor-agnostic-orderbook', () => {
   const asks = Keypair.generate();
 
   it('create market', async () => {
-    const tx = await program.methods
+    const create = await program.methods
         .createMarket(
             getProvider().wallet.publicKey,
             new BN(32),
@@ -32,13 +32,11 @@ describe('anchor-agnostic-orderbook', () => {
         })
         .signers([market, eventQueue, bids, asks])
         .rpc()
-    console.log('create market', tx);
-    console.log(program.account)
-    console.log(await getProvider().connection.getAccountInfo(market.publicKey));
+    console.log('create market', create);
   });
 
   it('new bid', async () => {
-    const tx2 = await program.methods
+    const bid = await program.methods
         .newOrder(
             new BN(1000),
             new BN(1000),
@@ -58,11 +56,11 @@ describe('anchor-agnostic-orderbook', () => {
           authority: getProvider().wallet.publicKey,
         })
         .rpc()
-    console.log('new bid', tx2);
+    console.log('new bid', bid);
   })
 
   it('new ask', async () => {
-    const tx3 = await program.methods
+    const ask = await program.methods
         .newOrder(
             new BN(1100),
             new BN(1100),
@@ -82,10 +80,13 @@ describe('anchor-agnostic-orderbook', () => {
           authority: getProvider().wallet.publicKey,
         })
         .rpc()
+    console.log('new ask', ask);
   })
 
   it('consume events', async () => {
-    console.log(await program.account.eventQueue.fetch(eventQueue.publicKey));
+    const eq = await program.account.eventQueue.fetch(eventQueue.publicKey);
+    console.log(eq.buffer[0])
+    // console.log();
   })
 
   it('new cancel', async () => {

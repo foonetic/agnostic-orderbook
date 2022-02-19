@@ -1,19 +1,14 @@
-use std::{
-    cell::{RefMut},
-    convert::TryInto,
-    io::Write,
-    mem::size_of,
-};
+use std::{cell::RefMut, convert::TryInto, io::Write, mem::size_of};
 
 use anchor_lang::prelude::*;
-use bonfida_utils::BorshSize;
-use borsh::{BorshDeserialize, BorshSerialize};
-use bytemuck::{try_from_bytes_mut};
-use num_derive::{FromPrimitive, ToPrimitive};
-use num_traits::{FromPrimitive, ToPrimitive};
 use anchor_lang::solana_program::{
     account_info::AccountInfo, entrypoint::ProgramResult, msg, program_error::ProgramError,
 };
+use bonfida_utils::BorshSize;
+use borsh::{BorshDeserialize, BorshSerialize};
+use bytemuck::{try_from_bytes_mut, Pod};
+use num_derive::{FromPrimitive, ToPrimitive};
+use num_traits::{FromPrimitive, ToPrimitive};
 
 use crate::aob::critbit::IoError;
 pub use crate::aob::orderbook::{OrderSummary, ORDER_SUMMARY_SIZE};
@@ -146,7 +141,8 @@ impl MarketState {
 
 ////////////////////////////////////////////////////
 // Events
-#[derive(BorshDeserialize, BorshSerialize, Debug)]
+// #[zero_copy]
+#[derive(Copy, Clone, Debug)]
 /// Events are the primary output of the asset agnostic orderbook
 pub enum Event {
     /// A fill event describes a match between a taker order and a provider order
@@ -160,9 +156,9 @@ pub enum Event {
         /// The total base size of the transaction
         base_size: u64,
         /// The callback information for the maker
-        maker_callback_info: Vec<u8>,
+        maker_callback_info: [u8; 32],
         /// The callback information for the taker
-        taker_callback_info: Vec<u8>,
+        taker_callback_info: [u8; 32],
     },
     /// An out event describes an order which has been taken out of the orderbook
     Out {
@@ -175,130 +171,72 @@ pub enum Event {
         #[allow(missing_docs)]
         delete: bool,
         #[allow(missing_docs)]
-        callback_info: Vec<u8>,
+        callback_info: [u8; 32],
     },
-}
-
-impl Event {
-    /// Used to serialize an event object into a generic byte writer.
-    pub fn serialize<W: Write>(&self, writer: &mut W) -> Result<(), IoError> {
-        match self {
-            Event::Fill {
-                taker_side,
-                maker_order_id,
-                quote_size,
-                base_size,
-                maker_callback_info,
-                taker_callback_info,
-            } => {
-                writer.write_all(&[0])?;
-                writer.write_all(&[taker_side.to_u8().unwrap()])?;
-                writer.write_all(&maker_order_id.to_le_bytes())?;
-                writer.write_all(&quote_size.to_le_bytes())?;
-                writer.write_all(&base_size.to_le_bytes())?;
-                writer.write_all(maker_callback_info)?;
-                writer.write_all(taker_callback_info)?;
-            }
-            Event::Out {
-                side,
-                order_id,
-                base_size,
-                delete,
-                callback_info,
-            } => {
-                writer.write_all(&[1])?;
-                writer.write_all(&[side.to_u8().unwrap()])?;
-                writer.write_all(&order_id.to_le_bytes())?;
-                writer.write_all(&base_size.to_le_bytes())?;
-                writer.write_all(&[(*delete as u8)])?;
-                writer.write_all(callback_info)?;
-            }
-        };
-        Ok(())
-    }
-
-    /// Used to deserialize an event object from bytes.
-    pub fn deserialize(buf: &mut &[u8], callback_info_len: usize) -> Self {
-        match buf[0] {
-            0 => Event::Fill {
-                taker_side: Side::from_u8(buf[1]).unwrap(),
-                maker_order_id: u128::from_le_bytes(buf[2..18].try_into().unwrap()),
-                quote_size: u64::from_le_bytes(buf[18..26].try_into().unwrap()),
-                base_size: u64::from_le_bytes(buf[26..34].try_into().unwrap()),
-                maker_callback_info: buf[34..34 + callback_info_len].to_owned(),
-                taker_callback_info: buf[34 + callback_info_len..34 + (callback_info_len << 1)]
-                    .to_owned(),
-            },
-            1 => Event::Out {
-                side: Side::from_u8(buf[1]).unwrap(),
-                order_id: u128::from_le_bytes(buf[2..18].try_into().unwrap()),
-                base_size: u64::from_le_bytes(buf[18..26].try_into().unwrap()),
-                delete: buf[26] == 1,
-                callback_info: buf[27..27 + callback_info_len].to_owned(),
-            },
-            _ => unreachable!(),
-        }
-    }
-
-    /// An event queue is divided into slots. The size of these slots depend on the particular market's `callback_info_len` constant.
-    pub fn compute_slot_size(callback_info_len: usize) -> usize {
-        1 + 33 + 2 * callback_info_len
-    }
 }
 
 ////////////////////////////////////////////////////
 // Event Queue
 
-/// Describes the current state of the event queue
-#[zero_copy]
-#[derive(Debug)]
-#[repr(C, packed)]
-pub struct EventQueueHeader {
-    pub head: u64,
-    /// The current event queue length
-    pub count: u64,
-    pub event_size: u64,
-    pub seq_num: u64,
-}
-#[allow(missing_docs)]
-pub const REGISTER_SIZE: usize = ORDER_SUMMARY_SIZE as usize + 1; // Option<OrderSummary>
-
-impl EventQueueHeader {
-    pub const LEN: usize = size_of::<EventQueueHeader>();
-
-    pub fn initialize(&mut self, callback_info_len: u64) {
-        self.event_size = Event::compute_slot_size(callback_info_len as usize) as u64;
-    }
-}
-
-/// The event queue account contains a serialized header, a register
-/// and a circular buffer of serialized events.
-///
-/// This struct is used at runtime but doesn't represent a serialized event queue
 #[account(zero_copy)]
 #[derive(Debug)]
-#[repr(C, packed)]
+#[repr(C)]
 pub struct EventQueue {
-    pub header: EventQueueHeader,
-    pub buffer: [u8; 1024],
+    pub head: u64,
+    pub count: u64,
+    pub seq_num: u64,
     pub callback_info_len: u64,
+    pub buffer: [Option<Event>; 1],
 }
 
-/// The event queue register can hold arbitrary data returned by the AAOB. Currently only used to return [`OrderSummary`] objects.
-pub type Register<T> = Option<T>;
-
 impl EventQueue {
-    pub fn check_buffer_size(account: &AccountInfo, callback_info_len: u64) -> ProgramResult {
-        let event_size = Event::compute_slot_size(callback_info_len as usize);
-        if (account.data_len() - EventQueueHeader::LEN - REGISTER_SIZE) % event_size != 0 {
-            msg!("Event queue buffer size must be a multiple of the event size");
-            return Err(ProgramError::InvalidAccountData);
+    pub fn new(callback_info_len: u64) -> Self {
+        Self {
+            head: 0,
+            count: 0,
+            seq_num: 0,
+            callback_info_len,
+            buffer: [None; 1],
         }
+    }
+
+    pub fn empty(&self) -> bool {
+        self.count == 0
+    }
+
+    pub fn full(&self) -> bool {
+        self.count as usize == self.buffer.len()
+    }
+
+    /// Appends an `Event` to the back of the collection
+    ///
+    /// Returns back the `Event` if the vector is full
+    pub fn push_back(&mut self, event: Event) -> Result<(), Event> {
+        if self.full() {
+            return Err(event);
+        }
+        let slot = ((self.head + self.count) as usize) % self.buffer.len();
+        self.buffer[slot as usize] = Some(event);
+        self.head += 1;
+        self.count += 1;
+        self.seq_num += 1;
+        msg!("PUSH BACK {:?}", event);
         Ok(())
     }
 
+    /// Removes the `Event` from the front of the deque and returns it, or `None` if it's empty
+    pub fn pop_front(&mut self) -> Option<Event> {
+        if self.empty() {
+            return None;
+        }
+        let value = self.buffer[self.head as usize];
+        self.count -= 1;
+        self.head = (self.head + 1) % self.buffer.len() as u64;
+        value
+    }
+
     pub(crate) fn gen_order_id(&mut self, limit_price: u64, side: Side) -> u128 {
-        let seq_num = self.gen_seq_num();
+        let seq_num = self.seq_num + 1;
         let upper = (limit_price as u128) << 64;
         let lower = match side {
             Side::Bid => !seq_num,
@@ -306,159 +244,171 @@ impl EventQueue {
         };
         upper | (lower as u128)
     }
-
-    fn gen_seq_num(&mut self) -> u64 {
-        let seq_num = self.header.seq_num;
-        self.header.seq_num += 1;
-        seq_num
-    }
-
-    pub(crate) fn get_buf_len(&self) -> usize {
-        self.buffer.len() - EventQueueHeader::LEN - REGISTER_SIZE
-    }
-
-    pub(crate) fn full(&self) -> bool {
-        self.header.count as usize == (self.get_buf_len() / (self.header.event_size as usize))
-    }
-
-    pub(crate) fn push_back(&mut self, event: Event) -> Result<(), Event> {
-        if self.full() {
-            return Err(event);
-        }
-        let offset = EventQueueHeader::LEN
-            + (REGISTER_SIZE)
-            + (((self.header.head + self.header.count * self.header.event_size) as usize)
-                % self.get_buf_len());
-        let mut queue_event_data =
-            &mut self.buffer[offset..offset + (self.header.event_size as usize)];
-        event.serialize(&mut queue_event_data).unwrap();
-
-        self.header.count += 1;
-        self.header.seq_num += 1;
-
-        Ok(())
-    }
-
-    /// Retrieves the event at position index in the queue.
-    pub fn peek_at(&self, index: u64) -> Option<Event> {
-        if self.header.count <= index {
-            return None;
-        }
-
-        let header_offset = EventQueueHeader::LEN + REGISTER_SIZE;
-        let offset = ((self
-            .header
-            .head
-            .checked_add(index)
-            .unwrap()
-            .checked_mul(self.header.event_size)
-            .unwrap()) as usize
-            % self.get_buf_len())
-            + header_offset;
-        let mut event_data = &self.buffer[offset..offset + (self.header.event_size as usize)];
-        Some(Event::deserialize(&mut event_data, self.callback_info_len as usize))
-    }
-
-    /// Pop n entries from the event queue
-    pub fn pop_n(&mut self, number_of_entries_to_pop: u64) {
-        let capped_number_of_entries_to_pop =
-            std::cmp::min(self.header.count, number_of_entries_to_pop);
-        self.header.count -= capped_number_of_entries_to_pop;
-        self.header.head = (self.header.head
-            + capped_number_of_entries_to_pop * self.header.event_size)
-            % self.get_buf_len() as u64;
-    }
-
-    pub fn write_to_register<T: BorshSerialize + BorshDeserialize>(&mut self, object: T) {
-        let mut register =
-            &mut self.buffer[EventQueueHeader::LEN..EventQueueHeader::LEN + (REGISTER_SIZE)];
-        Register::Some(object).serialize(&mut register).unwrap();
-    }
-
-    pub fn clear_register(&mut self) {
-        let mut register =
-            &mut self.buffer[EventQueueHeader::LEN..EventQueueHeader::LEN + (REGISTER_SIZE)];
-        Register::<u8>::None.serialize(&mut register).unwrap();
-    }
-
-    /// This method is used to deserialize the event queue's register
-    ///
-    /// The nature of the serialized object should be deductible from caller context
-    pub fn read_register<T: BorshSerialize + BorshDeserialize>(
-        &self,
-    ) -> Result<Register<T>, IoError> {
-        let mut register =
-            &self.buffer[EventQueueHeader::LEN..EventQueueHeader::LEN + (REGISTER_SIZE)];
-        Register::deserialize(&mut register)
-    }
-
-    /// Returns an iterator over all the queue's events
-    #[cfg(feature = "no-entrypoint")]
-    pub fn iter<'b>(&'b self) -> QueueIterator<'a, 'b> {
-        QueueIterator {
-            queue_header: &self.header,
-            buffer: Rc::clone(&self.buffer),
-            current_index: self.header.head as usize,
-            callback_info_len: self.callback_info_len,
-            buffer_length: self.get_buf_len(),
-            header_offset: EventQueueHeader::LEN + REGISTER_SIZE,
-            remaining: self.header.count,
-        }
-    }
 }
 
-/// This method is used to deserialize the event queue's register
-/// without constructing an EventQueue instance
-///
-/// The nature of the serialized object should be deductible from caller context
-pub fn read_register<T: BorshSerialize + BorshDeserialize>(
-    event_q_acc: &AccountInfo,
-) -> Result<Register<T>, IoError> {
-    let mut register =
-        &event_q_acc.data.borrow()[EventQueueHeader::LEN..EventQueueHeader::LEN + REGISTER_SIZE];
-    Register::deserialize(&mut register)
-}
-
-#[cfg(feature = "no-entrypoint")]
-impl<'a, 'b> IntoIterator for &'b EventQueue<'a> {
-    type Item = Event;
-
-    type IntoIter = QueueIterator<'a, 'b>;
-
-    fn into_iter(self) -> Self::IntoIter {
-        self.iter()
-    }
-}
-#[cfg(feature = "no-entrypoint")]
-/// Utility struct for iterating over a queue
-pub struct QueueIterator<'a, 'b> {
-    queue_header: &'b EventQueueHeader,
-    buffer: Rc<RefCell<&'a mut [u8]>>, //The whole account data
-    current_index: usize,
-    callback_info_len: usize,
-    buffer_length: usize,
-    header_offset: usize,
-    remaining: u64,
-}
-
-#[cfg(feature = "no-entrypoint")]
-impl<'a, 'b> Iterator for QueueIterator<'a, 'b> {
-    type Item = Event;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.remaining == 0 {
-            return None;
-        }
-        let result = Event::deserialize(
-            &mut &self.buffer.borrow()[self.header_offset + self.current_index..],
-            self.callback_info_len,
-        );
-        self.current_index =
-            (self.current_index + self.queue_header.event_size as usize) % self.buffer_length;
-        self.remaining -= 1;
-        Some(result)
-    }
-}
+// impl<T> EventQueue<T> {
+//     pub(crate) fn gen_order_id(&mut self, limit_price: u64, side: Side) -> u128 {
+//         let seq_num = self.gen_seq_num();
+//         let upper = (limit_price as u128) << 64;
+//         let lower = match side {
+//             Side::Bid => !seq_num,
+//             Side::Ask => seq_num,
+//         };
+//         upper | (lower as u128)
+//     }
+//
+//     fn gen_seq_num(&mut self) -> u64 {
+//         let seq_num = self.header.seq_num;
+//         self.header.seq_num += 1;
+//         seq_num
+//     }
+//
+//     pub(crate) fn get_buf_len(&self) -> usize {
+//         self.buffer.len() - EventQueueHeader::LEN - REGISTER_SIZE
+//     }
+//
+//     pub(crate) fn full(&self) -> bool {
+//         self.header.count as usize == (self.get_buf_len() / (self.header.event_size as usize))
+//     }
+//
+//     pub(crate) fn push_back(&mut self, event: Event) -> Result<(), Event> {
+//         if self.full() {
+//             return Err(event);
+//         }
+//         let offset = EventQueueHeader::LEN
+//             + (REGISTER_SIZE)
+//             + (((self.header.head + self.header.count * self.header.event_size) as usize)
+//                 % self.get_buf_len());
+//         let mut queue_event_data =
+//             &mut self.buffer[offset..offset + (self.header.event_size as usize)];
+//         event.serialize(&mut queue_event_data).unwrap();
+//
+//         self.header.count += 1;
+//         self.header.seq_num += 1;
+//
+//         Ok(())
+//     }
+//
+//     /// Retrieves the event at position index in the queue.
+//     pub fn peek_at(&self, index: u64) -> Option<Event> {
+//         if self.header.count <= index {
+//             return None;
+//         }
+//
+//         let header_offset = EventQueueHeader::LEN + REGISTER_SIZE;
+//         let offset = ((self
+//             .header
+//             .head
+//             .checked_add(index)
+//             .unwrap()
+//             .checked_mul(self.header.event_size)
+//             .unwrap()) as usize
+//             % self.get_buf_len())
+//             + header_offset;
+//         let mut event_data = &self.buffer[offset..offset + (self.header.event_size as usize)];
+//         Some(Event::deserialize(&mut event_data, self.callback_info_len as usize))
+//     }
+//
+//     /// Pop n entries from the event queue
+//     pub fn pop_n(&mut self, number_of_entries_to_pop: u64) {
+//         let capped_number_of_entries_to_pop =
+//             std::cmp::min(self.header.count, number_of_entries_to_pop);
+//         self.header.count -= capped_number_of_entries_to_pop;
+//         self.header.head = (self.header.head
+//             + capped_number_of_entries_to_pop * self.header.event_size)
+//             % self.get_buf_len() as u64;
+//     }
+//
+//     pub fn write_to_register<T: BorshSerialize + BorshDeserialize>(&mut self, object: T) {
+//         let mut register =
+//             &mut self.buffer[EventQueueHeader::LEN..EventQueueHeader::LEN + (REGISTER_SIZE)];
+//         Register::Some(object).serialize(&mut register).unwrap();
+//     }
+//
+//     pub fn clear_register(&mut self) {
+//         let mut register =
+//             &mut self.buffer[EventQueueHeader::LEN..EventQueueHeader::LEN + (REGISTER_SIZE)];
+//         Register::<u8>::None.serialize(&mut register).unwrap();
+//     }
+//
+//     /// This method is used to deserialize the event queue's register
+//     ///
+//     /// The nature of the serialized object should be deductible from caller context
+//     pub fn read_register<T: BorshSerialize + BorshDeserialize>(
+//         &self,
+//     ) -> Result<Register<T>, IoError> {
+//         let mut register =
+//             &self.buffer[EventQueueHeader::LEN..EventQueueHeader::LEN + (REGISTER_SIZE)];
+//         Register::deserialize(&mut register)
+//     }
+//
+//     /// Returns an iterator over all the queue's events
+//     #[cfg(feature = "no-entrypoint")]
+//     pub fn iter<'b>(&'b self) -> QueueIterator<'a, 'b> {
+//         QueueIterator {
+//             queue_header: &self.header,
+//             buffer: Rc::clone(&self.buffer),
+//             current_index: self.header.head as usize,
+//             callback_info_len: self.callback_info_len,
+//             buffer_length: self.get_buf_len(),
+//             header_offset: EventQueueHeader::LEN + REGISTER_SIZE,
+//             remaining: self.header.count,
+//         }
+//     }
+// }
+//
+// /// This method is used to deserialize the event queue's register
+// /// without constructing an EventQueue instance
+// ///
+// /// The nature of the serialized object should be deductible from caller context
+// pub fn read_register<T: BorshSerialize + BorshDeserialize>(
+//     event_q_acc: &AccountInfo,
+// ) -> Result<Register<T>, IoError> {
+//     let mut register =
+//         &event_q_acc.data.borrow()[EventQueueHeader::LEN..EventQueueHeader::LEN + REGISTER_SIZE];
+//     Register::deserialize(&mut register)
+// }
+//
+// #[cfg(feature = "no-entrypoint")]
+// impl<'a, 'b> IntoIterator for &'b EventQueue<'a> {
+//     type Item = Event;
+//
+//     type IntoIter = QueueIterator<'a, 'b>;
+//
+//     fn into_iter(self) -> Self::IntoIter {
+//         self.iter()
+//     }
+// }
+// #[cfg(feature = "no-entrypoint")]
+// /// Utility struct for iterating over a queue
+// pub struct QueueIterator<'a, 'b> {
+//     queue_header: &'b EventQueueHeader,
+//     buffer: Rc<RefCell<&'a mut [u8]>>, //The whole account data
+//     current_index: usize,
+//     callback_info_len: usize,
+//     buffer_length: usize,
+//     header_offset: usize,
+//     remaining: u64,
+// }
+//
+// #[cfg(feature = "no-entrypoint")]
+// impl<'a, 'b> Iterator for QueueIterator<'a, 'b> {
+//     type Item = Event;
+//
+//     fn next(&mut self) -> Option<Self::Item> {
+//         if self.remaining == 0 {
+//             return None;
+//         }
+//         let result = Event::deserialize(
+//             &mut &self.buffer.borrow()[self.header_offset + self.current_index..],
+//             self.callback_info_len,
+//         );
+//         self.current_index =
+//             (self.current_index + self.queue_header.event_size as usize) % self.buffer_length;
+//         self.remaining -= 1;
+//         Some(result)
+//     }
+// }
 
 /// This byte flag is set for order_ids with side Bid, and unset for side Ask
 pub const ORDER_ID_SIDE_FLAG: u128 = 1 << 63;
