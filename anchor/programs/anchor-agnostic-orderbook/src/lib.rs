@@ -4,6 +4,7 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::log::sol_log_compute_units;
 use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
+use bytemuck::{Pod, Zeroable};
 use num_traits::FromPrimitive;
 
 use crate::aob::critbit::Slab;
@@ -11,10 +12,10 @@ use crate::aob::error::AoError;
 use crate::aob::orderbook::OrderBookState;
 use crate::aob::orderbook::OrderSummary;
 use crate::aob::params::NewOrderParams;
-use crate::aob::state::{AccountTag, MarketState};
-use crate::aob::state::EventQueue;
-use crate::aob::state::{SelfTradeBehavior, Side};
 use crate::aob::state::get_side_from_order_id;
+use crate::aob::state::EventQueue;
+use crate::aob::state::{AccountTag, MarketState};
+use crate::aob::state::{SelfTradeBehavior, Side};
 use crate::aob::utils::fp32_mul;
 use crate::aob::utils::round_price;
 
@@ -52,7 +53,7 @@ pub mod anchor_agnostic_orderbook {
         };
 
         let event_queue = &mut ctx.accounts.event_queue.load_init()?;
-        event_queue.header.initialize(callback_info_len);
+        event_queue.callback_info_len = callback_info_len;
 
         Slab::initialize(
             &ctx.accounts.bids.to_account_info(),
@@ -123,7 +124,7 @@ pub mod anchor_agnostic_orderbook {
         )?;
         sol_log_compute_units();
         msg!("Order summary : {:?}", order_summary);
-        event_queue.write_to_register(order_summary);
+        // event_queue.write_to_register(order_summary);
 
         let account_info = ctx.accounts.event_queue.to_account_info();
         msg!("Committing changes");
@@ -172,7 +173,7 @@ pub mod anchor_agnostic_orderbook {
         };
 
         let event_queue = &mut ctx.accounts.event_queue.load_mut()?;
-        event_queue.write_to_register(order_summary);
+        // event_queue.write_to_register(order_summary);
 
         order_book.commit_changes();
         order_book.release(&ctx.accounts.bids, &ctx.accounts.asks);
@@ -189,9 +190,9 @@ pub mod anchor_agnostic_orderbook {
         // Reward payout
         let event_queue = &mut ctx.accounts.event_queue.load_mut()?;
         let capped_number_of_entries_consumed =
-            std::cmp::min(event_queue.header.count, number_of_entries_to_consume);
+            std::cmp::min(event_queue.count as u64, number_of_entries_to_consume);
         let reward = (market_state.fee_budget * capped_number_of_entries_consumed)
-            .checked_div(event_queue.header.count)
+            .checked_div(event_queue.count as u64)
             .ok_or(AoError::NoOperations)
             .unwrap();
         market_state.fee_budget -= reward;
@@ -200,8 +201,11 @@ pub mod anchor_agnostic_orderbook {
         let reward_target_account = ctx.accounts.reward_target.to_account_info();
         **reward_target_account.try_borrow_mut_lamports()? += reward;
 
+        msg!("EVENT QUEUE IS {:?}", event_queue);
+        return Err(ProgramError::Custom(42));
+
         // Pop Events
-        event_queue.pop_n(number_of_entries_to_consume);
+        // event_queue.pop_n(number_of_entries_to_consume);
 
         msg!(
             "Number of events consumed: {:?}",
@@ -229,7 +233,7 @@ pub mod anchor_agnostic_orderbook {
 
         let event_queue = &ctx.accounts.event_queue.load_mut()?;
         // Check if all events have been processed
-        if event_queue.header.count != 0 {
+        if event_queue.count != 0 {
             msg!("The event queue needs to be empty");
             return Err(ProgramError::from(AoError::MarketStillActive));
         }
@@ -261,7 +265,7 @@ pub mod anchor_agnostic_orderbook {
     }
 }
 
-const SPACE: usize = 8 + std::mem::size_of::<EventQueue>();
+const SPACE: usize = std::mem::size_of::<EventQueue>();
 
 #[derive(Accounts)]
 pub struct CreateMarket<'info> {

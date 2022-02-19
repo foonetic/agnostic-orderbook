@@ -60,8 +60,8 @@ impl<'a> OrderBookState<'a> {
     ///
     /// But this is a problem, because Rust shortens that to &'b mut T (you are
     /// tied to the lifetime of RefMut, which is tied to the lifetime of the
-    /// original RefCell) That is not what we want, because now we have to deal
-    /// with all this crap proving to the borrow checker how long the RefMut lives,
+    /// original RefCell) That is not what we want, because now we have to prove
+    /// to the borrow checker how long the RefMut lives,
     /// when all we care about is the original lifetime of the buffer 'a If we
     /// instead .take(), we are mutably moving the reference to the buffer (&'a mut
     /// [u8]) into the current function   (note .take() is distinct from taking
@@ -230,10 +230,12 @@ impl<'a> OrderBookState<'a> {
                         delete,
                         order_id: best_offer_id,
                         base_size: cancelled_provide_base_qty,
-                        callback_info: self
-                            .get_tree(side.opposite())
-                            .get_callback_info(best_bo_ref.callback_info_pt as usize)
-                            .to_owned(),
+                        // FIXME
+                        callback_info: [0; 32]
+                        // callback_info: self
+                        //     .get_tree(side.opposite())
+                        //     .get_callback_info(best_bo_ref.callback_info_pt as usize)
+                        //     .to_owned(),
                     };
                     event_queue
                         .push_back(provide_out)
@@ -256,11 +258,13 @@ impl<'a> OrderBookState<'a> {
 
             let maker_fill = Event::Fill {
                 taker_side: side,
-                maker_callback_info: self
-                    .get_tree(side.opposite())
-                    .get_callback_info(best_bo_ref.callback_info_pt as usize)
-                    .to_owned(),
-                taker_callback_info: callback_info.clone(),
+                maker_callback_info: [0; 32],
+                // maker_callback_info: self
+                //     .get_tree(side.opposite())
+                //     .get_callback_info(best_bo_ref.callback_info_pt as usize)
+                //     .to_owned(),
+                taker_callback_info: [0; 32],
+                // taker_callback_info: callback_info.clone(),
                 maker_order_id: best_bo_ref.order_id(),
                 quote_size: quote_maker_qty,
                 base_size: base_trade_qty,
@@ -280,10 +284,12 @@ impl<'a> OrderBookState<'a> {
                     side: cur_side,
                     order_id: best_offer_id,
                     base_size: best_bo_ref.base_quantity,
-                    callback_info: self
-                        .get_tree(side.opposite())
-                        .get_callback_info(best_bo_ref.callback_info_pt as usize)
-                        .to_owned(),
+                    // FIXME
+                    callback_info: [0; 32],
+                    // callback_info: self
+                    //     .get_tree(side.opposite())
+                    //     .get_callback_info(best_bo_ref.callback_info_pt as usize)
+                    //     .to_owned(),
                     delete: true,
                 };
 
@@ -339,10 +345,12 @@ impl<'a> OrderBookState<'a> {
                 delete: true,
                 order_id: l.order_id(),
                 base_size: l.base_quantity,
-                callback_info: self
-                    .get_tree(side)
-                    .get_callback_info(l.callback_info_pt as usize)
-                    .to_owned(),
+                callback_info: [0; 32]
+                // FIXME
+                // callback_info: self
+                //     .get_tree(side)
+                //     .get_callback_info(l.callback_info_pt as usize)
+                //     .to_owned(),
             };
             event_queue
                 .push_back(out)
