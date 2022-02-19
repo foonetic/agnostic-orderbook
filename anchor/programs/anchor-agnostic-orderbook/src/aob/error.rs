@@ -1,3 +1,4 @@
+use std::array::TryFromSliceError;
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 use anchor_lang::solana_program::program_error::PrintProgramError;
@@ -57,8 +58,16 @@ pub enum AoError {
     FailedToDeserialize,
 }
 
+impl From<TryFromSliceError> for AoError {
+    fn from(e: TryFromSliceError) -> Self {
+        msg!("{}", e);
+        AoError::FailedToDeserialize
+    }
+}
+
 impl From<AoError> for ProgramError {
     fn from(e: AoError) -> Self {
+        e.print::<AoError>();
         ProgramError::Custom(e as u32)
     }
 }
