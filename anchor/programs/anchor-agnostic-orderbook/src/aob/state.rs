@@ -140,11 +140,12 @@ impl MarketState {
 }
 
 /// Events are the primary output of the asset agnostic orderbook
-#[derive(Copy, Clone, Debug)]
-// #[derive(AnchorSerialize, AnchorDeserialize, Copy, Clone, Debug)]
+// #[derive(AnchorSerialize, AnchorDeserialize, Copy, Clone, Debug, Default)]
+#[derive(Copy, Clone, Debug, Default)]
 pub enum Event {
     /// Would rather use Option but Anchor IDL can't seem to properly parse Option<Event>
     /// and makes assumptions about `Default`s
+    #[default]
     None,
     /// A fill event describes a match between a taker order and a maker order
     Fill {
@@ -176,12 +177,6 @@ pub enum Event {
     },
 }
 
-impl Default for Event {
-    fn default() -> Self {
-        Event::None
-    }
-}
-
 /// Event queue
 #[account(zero_copy)]
 #[derive(Debug, Default)]
@@ -190,6 +185,7 @@ pub struct EventQueue {
     pub count: u64,
     pub seq_num: u64,
     pub callback_info_len: u64,
+    pub order_summary: Option<OrderSummary>,
     pub buffer: [Event; 8],
 }
 
@@ -200,6 +196,7 @@ impl EventQueue {
             count: 0,
             seq_num: 0,
             callback_info_len,
+            order_summary: None,
             buffer: [Event::None; 8],
         }
     }
@@ -220,11 +217,10 @@ impl EventQueue {
             return Err(event);
         }
         let slot = ((self.head + self.count) as usize) % self.buffer.len();
+        msg!("SLOT {}", slot);
         self.buffer[slot as usize] = event;
-        self.head += 1;
         self.count += 1;
         self.seq_num += 1;
-        // msg!("PUSH BACK {:?}", event);
         Ok(())
     }
 

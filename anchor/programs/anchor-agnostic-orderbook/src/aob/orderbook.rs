@@ -1,3 +1,4 @@
+use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{account_info::AccountInfo, msg};
 
 use borsh::{BorshDeserialize, BorshSerialize};
@@ -18,10 +19,12 @@ use crate::aob::{
 /// were either matched against other orders or written into the orderbook.
 ///
 /// In the case of an order cancellation, the quantities describe what was left of the order in the orderbook.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
+#[zero_copy]
+#[derive(Debug, Default)]
+#[repr(packed)]
 pub struct OrderSummary {
     /// When applicable, the order id of the newly created order.
-    pub posted_order_id: Option<u128>,
+    // pub posted_order_id: Option<u128>,
     #[allow(missing_docs)]
     pub total_base_qty: u64,
     #[allow(missing_docs)]
@@ -308,7 +311,7 @@ impl<'a> OrderBookState<'a> {
 
         if crossed || !post_allowed || base_qty_to_post <= min_base_order_size {
             return Ok(OrderSummary {
-                posted_order_id: None,
+                // posted_order_id: None,
                 total_base_qty: max_base_qty - base_qty_remaining,
                 total_quote_qty: max_quote_qty - quote_qty_remaining,
                 total_base_qty_posted: 0,
@@ -354,7 +357,7 @@ impl<'a> OrderBookState<'a> {
         base_qty_remaining -= base_qty_to_post;
         quote_qty_remaining -= fp32_mul(base_qty_to_post, limit_price);
         Ok(OrderSummary {
-            posted_order_id: Some(new_leaf_order_id),
+            // posted_order_id: Some(new_leaf_order_id),
             total_base_qty: max_base_qty - base_qty_remaining,
             total_quote_qty: max_quote_qty - quote_qty_remaining,
             total_base_qty_posted: base_qty_to_post,

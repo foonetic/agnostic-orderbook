@@ -85,10 +85,16 @@ describe('anchor-agnostic-orderbook', () => {
 
   it('consume events', async () => {
     const eq = await program.account.eventQueue.fetch(eventQueue.publicKey);
-    for (const event of eq.buffer) {
-      console.log(event);
-      console.log(event.out);
-    }
+    console.log(eq.buffer[7]);
+    console.log(eq.head.toString());
+    console.log(eq.count.toString());
+    console.log(eq.seqNum.toString());
+    console.log(eq.orderSummary.totalBaseQty.toString());
+    console.log(eq.orderSummary.totalQuoteQty.toString());
+    console.log(eq.orderSummary.totalBaseQtyPosted.toString());
+    // for (const event of eq) {
+    //   console.log(event);
+    // }
     // console.log(eq);
     // console.log();
   })
@@ -139,3 +145,7 @@ describe('anchor-agnostic-orderbook', () => {
   //   console.log('new order', tx);
   // })
 });
+
+function sleep(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
