@@ -48,7 +48,7 @@ pub struct NewOrderParams {
     /// The callback information is used to attach metadata to an order. This callback information will be transmitted back through the event queue.
     ///
     /// The size of this vector should not exceed the current market's [`callback_info_len`][`MarketState::callback_info_len`].
-    pub callback_info: Vec<u8>,
+    pub callback_info: [u8; 32],
     /// The order will not be matched against the orderbook and will be direcly written into it.
     ///
     /// The operation will fail if the order's limit_price crosses the spread.

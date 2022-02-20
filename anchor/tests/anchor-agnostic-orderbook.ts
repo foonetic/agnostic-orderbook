@@ -1,6 +1,6 @@
 import * as anchor from '@project-serum/anchor';
 import {BN, getProvider} from '@project-serum/anchor';
-import {Keypair, SystemProgram} from "@solana/web3.js";
+import {PublicKey, Keypair, SystemProgram} from "@solana/web3.js";
 
 describe('anchor-agnostic-orderbook', () => {
   anchor.setProvider(anchor.Provider.env());
@@ -67,7 +67,7 @@ describe('anchor-agnostic-orderbook', () => {
             new BN(1000),
             1,
             new BN(3),
-            getProvider().wallet.publicKey.toBuffer(),
+            Keypair.generate().publicKey.toBuffer(),
             false,
             true,
             1,
@@ -79,13 +79,17 @@ describe('anchor-agnostic-orderbook', () => {
           asks: asks.publicKey,
           authority: getProvider().wallet.publicKey,
         })
-        .rpc()
+        .rpc();
     console.log('new ask', ask);
   })
 
   it('consume events', async () => {
     const eq = await program.account.eventQueue.fetch(eventQueue.publicKey);
-    console.log(eq.buffer[0])
+    for (const event of eq.buffer) {
+      console.log(event);
+      console.log(event.out);
+    }
+    // console.log(eq);
     // console.log();
   })
 

@@ -139,13 +139,14 @@ impl MarketState {
     }
 }
 
-////////////////////////////////////////////////////
-// Events
-// #[zero_copy]
-#[derive(Copy, Clone, Debug)]
 /// Events are the primary output of the asset agnostic orderbook
+#[derive(Copy, Clone, Debug)]
+// #[derive(AnchorSerialize, AnchorDeserialize, Copy, Clone, Debug)]
 pub enum Event {
-    /// A fill event describes a match between a taker order and a provider order
+    /// Would rather use Option but Anchor IDL can't seem to properly parse Option<Event>
+    /// and makes assumptions about `Default`s
+    None,
+    /// A fill event describes a match between a taker order and a maker order
     Fill {
         #[allow(missing_docs)]
         taker_side: Side,
@@ -175,18 +176,21 @@ pub enum Event {
     },
 }
 
-////////////////////////////////////////////////////
-// Event Queue
+impl Default for Event {
+    fn default() -> Self {
+        Event::None
+    }
+}
 
+/// Event queue
 #[account(zero_copy)]
-#[derive(Debug)]
-#[repr(C)]
+#[derive(Debug, Default)]
 pub struct EventQueue {
     pub head: u64,
     pub count: u64,
     pub seq_num: u64,
     pub callback_info_len: u64,
-    pub buffer: [Option<Event>; 1],
+    pub buffer: [Event; 8],
 }
 
 impl EventQueue {
@@ -196,7 +200,7 @@ impl EventQueue {
             count: 0,
             seq_num: 0,
             callback_info_len,
-            buffer: [None; 1],
+            buffer: [Event::None; 8],
         }
     }
 
@@ -216,11 +220,11 @@ impl EventQueue {
             return Err(event);
         }
         let slot = ((self.head + self.count) as usize) % self.buffer.len();
-        self.buffer[slot as usize] = Some(event);
+        self.buffer[slot as usize] = event;
         self.head += 1;
         self.count += 1;
         self.seq_num += 1;
-        msg!("PUSH BACK {:?}", event);
+        // msg!("PUSH BACK {:?}", event);
         Ok(())
     }
 
@@ -232,7 +236,7 @@ impl EventQueue {
         let value = self.buffer[self.head as usize];
         self.count -= 1;
         self.head = (self.head + 1) % self.buffer.len() as u64;
-        value
+        Some(value)
     }
 
     pub(crate) fn gen_order_id(&mut self, limit_price: u64, side: Side) -> u128 {
