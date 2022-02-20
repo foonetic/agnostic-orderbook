@@ -1,3 +1,4 @@
+#![feature(derive_default_enum)]
 use std::ops::DerefMut;
 
 use anchor_lang::prelude::*;
@@ -78,76 +79,82 @@ pub mod anchor_agnostic_orderbook {
         post_allowed: bool,
         self_trade_behavior: u8,
     ) -> ProgramResult {
-        let mut market_state = ctx.accounts.market.load_mut()?;
-        let side = Side::from_u8(side).ok_or(AoError::FailedToDeserialize)?;
-        let self_trade_behavior =
-            SelfTradeBehavior::from_u8(self_trade_behavior).ok_or(AoError::FailedToDeserialize)?;
-        let limit_price = round_price(market_state.tick_size, limit_price, side);
-        let _callback_info_len = market_state.callback_info_len as usize;
-
-        msg!("New Order: Creating order book");
-        sol_log_compute_units();
-        let mut order_book = OrderBookState::new(
-            &ctx.accounts.bids,
-            &ctx.accounts.asks,
-            market_state.callback_info_len as usize,
-            market_state.callback_id_len as usize,
-        )?;
-        sol_log_compute_units();
-
-        if callback_info.len() != market_state.callback_info_len as usize {
-            msg!("Invalid callback information");
-            return Err(ProgramError::InvalidArgument);
-        }
-
-        msg!("New Order: Creating event queue");
-        sol_log_compute_units();
-        let mut event_queue = ctx.accounts.event_queue.load_mut()?;
-        sol_log_compute_units();
-
-        msg!("New Order: Creating new order");
-        sol_log_compute_units();
-        let order_summary = order_book.new_order(
-            NewOrderParams {
-                max_base_qty,
-                max_quote_qty,
-                limit_price,
-                side,
-                match_limit,
-                callback_info,
-                post_only,
-                post_allowed,
-                self_trade_behavior,
-            },
-            &mut event_queue,
-            market_state.min_base_order_size,
-        )?;
-        sol_log_compute_units();
-        msg!("Order summary : {:?}", order_summary);
-        msg!("{:?}", order_summary);
-        // event_queue.write_to_register(order_summary);
-
-        msg!("Committing changes");
-        sol_log_compute_units();
-        order_book.commit_changes();
-        sol_log_compute_units();
-
-        // Verify that fees were transfered. Fees are expected to be transfered by the caller
-        // program in order to reduce the CPI call stack depth.
-        if ctx.accounts.market.to_account_info().lamports() - market_state.initial_lamports
-            < market_state
-                .fee_budget
-                .checked_add(market_state.cranker_reward)
-                .unwrap()
         {
-            msg!("Fees were not correctly payed during caller runtime.");
-            return Err(AoError::FeeNotPayed.into());
-        }
-        market_state.fee_budget =
-            ctx.accounts.market.to_account_info().lamports() - market_state.initial_lamports;
-        order_book.release(&ctx.accounts.bids, &ctx.accounts.asks);
+            let mut market_state = ctx.accounts.market.load_mut()?;
+            let side = Side::from_u8(side).ok_or(AoError::FailedToDeserialize)?;
+            let self_trade_behavior = SelfTradeBehavior::from_u8(self_trade_behavior)
+                .ok_or(AoError::FailedToDeserialize)?;
+            let limit_price = round_price(market_state.tick_size, limit_price, side);
+            let _callback_info_len = market_state.callback_info_len as usize;
 
-        msg!("BUFFER {:?}", event_queue.buffer);
+            msg!("New Order: Creating order book");
+            sol_log_compute_units();
+            let mut order_book = OrderBookState::new(
+                &ctx.accounts.bids,
+                &ctx.accounts.asks,
+                market_state.callback_info_len as usize,
+                market_state.callback_id_len as usize,
+            )?;
+            sol_log_compute_units();
+
+            if callback_info.len() != market_state.callback_info_len as usize {
+                msg!("Invalid callback information");
+                return Err(ProgramError::InvalidArgument);
+            }
+
+            msg!("New Order: Creating event queue");
+            sol_log_compute_units();
+            let mut event_queue = ctx.accounts.event_queue.load_mut()?;
+            sol_log_compute_units();
+
+            msg!("New Order: Creating new order");
+            sol_log_compute_units();
+            let order_summary = order_book.new_order(
+                NewOrderParams {
+                    max_base_qty,
+                    max_quote_qty,
+                    limit_price,
+                    side,
+                    match_limit,
+                    callback_info,
+                    post_only,
+                    post_allowed,
+                    self_trade_behavior,
+                },
+                &mut event_queue,
+                market_state.min_base_order_size,
+            )?;
+            event_queue.order_summary = Some(order_summary);
+            sol_log_compute_units();
+            msg!("Order summary : {:?}", order_summary);
+            msg!("{:?}", order_summary);
+            // event_queue.write_to_register(order_summary);
+
+            msg!("Committing changes");
+            sol_log_compute_units();
+            order_book.commit_changes();
+            sol_log_compute_units();
+
+            // Verify that fees were transfered. Fees are expected to be transfered by the caller
+            // program in order to reduce the CPI call stack depth.
+            if ctx.accounts.market.to_account_info().lamports() - market_state.initial_lamports
+                < market_state
+                    .fee_budget
+                    .checked_add(market_state.cranker_reward)
+                    .unwrap()
+            {
+                msg!("Fees were not correctly payed during caller runtime.");
+                return Err(AoError::FeeNotPayed.into());
+            }
+            market_state.fee_budget =
+                ctx.accounts.market.to_account_info().lamports() - market_state.initial_lamports;
+            order_book.release(&ctx.accounts.bids, &ctx.accounts.asks);
+        }
+
+        msg!(
+            "EVENT QUEUE {:?}",
+            bytemuck::from_bytes::<EventQueue>(&ctx.accounts.event_queue.to_account_info().try_borrow_mut_data()?.deref_mut()[8..])
+        );
         Ok(())
     }
 
