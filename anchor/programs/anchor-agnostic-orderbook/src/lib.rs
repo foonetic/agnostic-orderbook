@@ -73,7 +73,7 @@ pub mod anchor_agnostic_orderbook {
         limit_price: u64,
         side: u8,
         match_limit: u64,
-        callback_info: Vec<u8>,
+        callback_info: [u8; 32],
         post_only: bool,
         post_allowed: bool,
         self_trade_behavior: u8,
@@ -124,9 +124,9 @@ pub mod anchor_agnostic_orderbook {
         )?;
         sol_log_compute_units();
         msg!("Order summary : {:?}", order_summary);
+        msg!("{:?}", order_summary);
         // event_queue.write_to_register(order_summary);
 
-        let account_info = ctx.accounts.event_queue.to_account_info();
         msg!("Committing changes");
         sol_log_compute_units();
         order_book.commit_changes();
@@ -147,6 +147,7 @@ pub mod anchor_agnostic_orderbook {
             ctx.accounts.market.to_account_info().lamports() - market_state.initial_lamports;
         order_book.release(&ctx.accounts.bids, &ctx.accounts.asks);
 
+        msg!("BUFFER {:?}", event_queue.buffer);
         Ok(())
     }
 
@@ -160,19 +161,20 @@ pub mod anchor_agnostic_orderbook {
         )?;
 
         let slab = order_book.get_tree(get_side_from_order_id(order_id));
-        let node = slab.remove_by_key(order_id).ok_or(AoError::OrderNotFound)?;
-        let leaf_node = node.as_leaf().unwrap();
-        let total_base_qty = leaf_node.base_quantity;
-        let total_quote_qty = fp32_mul(leaf_node.base_quantity, leaf_node.price());
+        // let node = slab.remove_by_key(order_id).ok_or(AoError::OrderNotFound)?;
+        // let leaf_node = node.as_leaf().unwrap();
+        // let total_base_qty = leaf_node.base_quantity;
+        // let total_quote_qty = fp32_mul(leaf_node.base_quantity, leaf_node.price());
+        //
+        // let order_summary = OrderSummary {
+        //     posted_order_id: None,
+        //     total_base_qty,
+        //     total_quote_qty,
+        //     total_base_qty_posted: 0,
+        // };
 
-        let order_summary = OrderSummary {
-            posted_order_id: None,
-            total_base_qty,
-            total_quote_qty,
-            total_base_qty_posted: 0,
-        };
-
-        let event_queue = &mut ctx.accounts.event_queue.load_mut()?;
+        // let event_queue = &mut ctx.accounts.event_queue.load_mut()?;
+        // let event_queue = &mut ctx.accounts.event_queue;
         // event_queue.write_to_register(order_summary);
 
         order_book.commit_changes();
@@ -188,10 +190,10 @@ pub mod anchor_agnostic_orderbook {
         let market_state = &mut ctx.accounts.market.load_mut()?;
 
         // Reward payout
+        // let event_queue = &mut ctx.accounts.event_queue.load_mut()?;
         let event_queue = &mut ctx.accounts.event_queue.load_mut()?;
-        let capped_number_of_entries_consumed =
-            std::cmp::min(event_queue.count as u64, number_of_entries_to_consume);
-        let reward = (market_state.fee_budget * capped_number_of_entries_consumed)
+        let number_of_entries_to_consume = event_queue.count.min(number_of_entries_to_consume);
+        let reward = (market_state.fee_budget * number_of_entries_to_consume)
             .checked_div(event_queue.count as u64)
             .ok_or(AoError::NoOperations)
             .unwrap();
@@ -201,15 +203,14 @@ pub mod anchor_agnostic_orderbook {
         let reward_target_account = ctx.accounts.reward_target.to_account_info();
         **reward_target_account.try_borrow_mut_lamports()? += reward;
 
-        msg!("EVENT QUEUE IS {:?}", event_queue);
-        return Err(ProgramError::Custom(42));
-
         // Pop Events
-        // event_queue.pop_n(number_of_entries_to_consume);
+        for _ in 0..number_of_entries_to_consume {
+            event_queue.pop_front();
+        }
 
         msg!(
             "Number of events consumed: {:?}",
-            capped_number_of_entries_consumed
+            number_of_entries_to_consume
         );
 
         Ok(())
@@ -231,7 +232,8 @@ pub mod anchor_agnostic_orderbook {
             return Err(ProgramError::from(AoError::MarketStillActive));
         }
 
-        let event_queue = &ctx.accounts.event_queue.load_mut()?;
+        // let event_queue = &ctx.accounts.event_queue.load_mut()?;
+        let event_queue = &ctx.accounts.event_queue.load()?;
         // Check if all events have been processed
         if event_queue.count != 0 {
             msg!("The event queue needs to be empty");
@@ -265,15 +267,13 @@ pub mod anchor_agnostic_orderbook {
     }
 }
 
-const SPACE: usize = std::mem::size_of::<EventQueue>();
-
 #[derive(Accounts)]
 pub struct CreateMarket<'info> {
     // TODO PDAs?
     #[account(init, payer = payer)]
     pub market: AccountLoader<'info, MarketState>,
     // TODO pass in space size instead of just max
-    #[account(init, payer = payer, space = 8 + SPACE)]
+    #[account(init, payer = payer, space = 8 + std::mem::size_of::<EventQueue>())]
     pub event_queue: AccountLoader<'info, EventQueue>,
     // TODO it would be nicer to parameterize with the actual types `T` instead of the `AccountInfo`
     // escape hatch.
