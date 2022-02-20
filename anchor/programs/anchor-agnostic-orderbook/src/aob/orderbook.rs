@@ -236,12 +236,10 @@ impl<'a> OrderBookState<'a> {
                         delete,
                         order_id: best_offer_id,
                         base_size: cancelled_provide_base_qty,
-                        // FIXME
-                        callback_info: [0; 32]
-                        // callback_info: self
-                        //     .get_tree(side.opposite())
-                        //     .get_callback_info(best_bo_ref.callback_info_pt as usize)
-                        //     .to_owned(),
+                        callback_info: self
+                            .get_tree(side.opposite())
+                            .get_callback_info(best_bo_ref.callback_info_pt as usize)
+                            .try_into()?,
                     };
                     event_queue
                         .push_back(provide_out)
@@ -262,13 +260,11 @@ impl<'a> OrderBookState<'a> {
 
             let maker_fill = Event::Fill {
                 taker_side: side,
-                maker_callback_info: [0; 32],
-                // maker_callback_info: self
-                //     .get_tree(side.opposite())
-                //     .get_callback_info(best_bo_ref.callback_info_pt as usize)
-                //     .to_owned(),
-                taker_callback_info: [0; 32],
-                // taker_callback_info: callback_info.clone(),
+                maker_callback_info: self
+                    .get_tree(side.opposite())
+                    .get_callback_info(best_bo_ref.callback_info_pt as usize)
+                    .try_into()?,
+                taker_callback_info: callback_info.clone(),
                 maker_order_id: best_bo_ref.order_id(),
                 quote_size: quote_maker_qty,
                 base_size: base_trade_qty,
@@ -288,12 +284,10 @@ impl<'a> OrderBookState<'a> {
                     side: cur_side,
                     order_id: best_offer_id,
                     base_size: best_bo_ref.base_quantity,
-                    // FIXME
-                    callback_info: [0; 32],
-                    // callback_info: self
-                    //     .get_tree(side.opposite())
-                    //     .get_callback_info(best_bo_ref.callback_info_pt as usize)
-                    //     .to_owned(),
+                    callback_info: self
+                        .get_tree(side.opposite())
+                        .get_callback_info(best_bo_ref.callback_info_pt as usize)
+                        .try_into()?,
                     delete: true,
                 };
 
@@ -349,12 +343,10 @@ impl<'a> OrderBookState<'a> {
                 delete: true,
                 order_id: l.order_id(),
                 base_size: l.base_quantity,
-                callback_info: [0; 32]
-                // FIXME
-                // callback_info: self
-                //     .get_tree(side)
-                //     .get_callback_info(l.callback_info_pt as usize)
-                //     .to_owned(),
+                callback_info: self
+                    .get_tree(side)
+                    .get_callback_info(l.callback_info_pt as usize)
+                    .try_into()?,
             };
             event_queue
                 .push_back(out)
