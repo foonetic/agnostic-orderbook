@@ -15,7 +15,7 @@ cpi = ["no-entrypoint"]
 default = []
 
 [dependencies]
-anchor-lang = "0.21.0"
+anchor-lang = "0.22.0"
 bonfida-utils = "0.2.2"
 borsh = "0.9.3"
 bytemuck = { version = "1.7.3", features = ["derive", "extern_crate_std"] }

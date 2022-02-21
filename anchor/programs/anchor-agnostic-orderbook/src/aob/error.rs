@@ -72,6 +72,18 @@ impl From<AoError> for ProgramError {
     }
 }
 
+impl From<AoError> for anchor_lang::error::Error {
+    fn from(e: AoError) -> Self {
+        anchor_lang::error::Error::ProgramError(
+            anchor_lang::error::ProgramErrorWithOrigin {
+                program_error: ProgramError::from(e),
+                source: None,
+                account_name: None
+            }
+        )
+    }
+}
+
 impl<T> DecodeError<T> for AoError {
     fn type_of() -> &'static str {
         "AOError"
