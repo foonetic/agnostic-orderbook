@@ -1,16 +1,18 @@
 import * as anchor from '@project-serum/anchor';
 import {BN, getProvider} from '@project-serum/anchor';
 import {PublicKey, Keypair, SystemProgram} from "@solana/web3.js";
+import {EventQueue} from "./eventQueue";
+import * as events from "events";
 
 describe('anchor-agnostic-orderbook', () => {
   anchor.setProvider(anchor.Provider.env());
 
   const program = anchor.workspace.AnchorAgnosticOrderbook;
 
-  const market = Keypair.generate();
-  const eventQueue = Keypair.generate();
-  const bids = Keypair.generate();
-  const asks = Keypair.generate();
+  const marketKeypair = Keypair.generate();
+  const eventQueueKeypair = Keypair.generate();
+  const bidsKeypair = Keypair.generate();
+  const asksKeypair = Keypair.generate();
 
   it('create market', async () => {
     const create = await program.methods
@@ -23,14 +25,14 @@ describe('anchor-agnostic-orderbook', () => {
             new BN(0)
         )
         .accounts({
-          market: market.publicKey,
-          eventQueue: eventQueue.publicKey,
-          bids: bids.publicKey,
-          asks: asks.publicKey,
+          market: marketKeypair.publicKey,
+          eventQueue: eventQueueKeypair.publicKey,
+          bids: bidsKeypair.publicKey,
+          asks: asksKeypair.publicKey,
           payer: getProvider().wallet.publicKey,
           systemProgram: SystemProgram.programId,
         })
-        .signers([market, eventQueue, bids, asks])
+        .signers([marketKeypair, eventQueueKeypair, bidsKeypair, asksKeypair])
         .rpc()
     console.log('create market', create);
   });
@@ -49,10 +51,10 @@ describe('anchor-agnostic-orderbook', () => {
             1,
         )
         .accounts({
-          market: market.publicKey,
-          eventQueue: eventQueue.publicKey,
-          bids: bids.publicKey,
-          asks: asks.publicKey,
+          market: marketKeypair.publicKey,
+          eventQueue: eventQueueKeypair.publicKey,
+          bids: bidsKeypair.publicKey,
+          asks: asksKeypair.publicKey,
           authority: getProvider().wallet.publicKey,
         })
         .rpc()
@@ -73,10 +75,10 @@ describe('anchor-agnostic-orderbook', () => {
             1,
         )
         .accounts({
-          market: market.publicKey,
-          eventQueue: eventQueue.publicKey,
-          bids: bids.publicKey,
-          asks: asks.publicKey,
+          market: marketKeypair.publicKey,
+          eventQueue: eventQueueKeypair.publicKey,
+          bids: bidsKeypair.publicKey,
+          asks: asksKeypair.publicKey,
           authority: getProvider().wallet.publicKey,
         })
         .rpc();
@@ -84,14 +86,10 @@ describe('anchor-agnostic-orderbook', () => {
   })
 
   it('consume events', async () => {
-    const eq = await program.account.eventQueue.fetch(eventQueue.publicKey);
-    console.log(eq.buffer[7]);
-    console.log(eq.head.toString());
-    console.log(eq.count.toString());
-    console.log(eq.seqNum.toString());
-    console.log(eq.orderSummary.totalBaseQty.toString());
-    console.log(eq.orderSummary.totalQuoteQty.toString());
-    console.log(eq.orderSummary.totalBaseQtyPosted.toString());
+    const eventQueue = await EventQueue.load(getProvider().connection, eventQueueKeypair.publicKey, 32)
+
+
+    // const eq = await program.account.fetch(eventQueue.publicKey);
     // for (const event of eq) {
     //   console.log(event);
     // }
@@ -100,15 +98,18 @@ describe('anchor-agnostic-orderbook', () => {
   })
 
   it('new cancel', async () => {
+    const eventQueue = await EventQueue.load(getProvider().connection, eventQueueKeypair.publicKey, 32)
+    const orderSummary = eventQueue.extractRegister(eventQueue.buffer);
+    console.log(orderSummary);
+    const orderId = new BN(orderSummary.slice(1, 18), "le");
+    console.log("order id", orderId.toString())
     const tx = await program.methods
-        .cancelOrder(
-            new BN(1)
-        )
+        .cancelOrder(new BN("18446744073709551616003"))
         .accounts({
-          market: market.publicKey,
-          eventQueue: eventQueue.publicKey,
-          bids: bids.publicKey,
-          asks: asks.publicKey,
+          market: marketKeypair.publicKey,
+          eventQueue: eventQueueKeypair.publicKey,
+          bids: bidsKeypair.publicKey,
+          asks: asksKeypair.publicKey,
           authority: getProvider().wallet.publicKey,
         })
         .rpc()
