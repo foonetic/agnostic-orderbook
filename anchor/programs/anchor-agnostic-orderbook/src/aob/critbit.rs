@@ -350,7 +350,7 @@ impl<'a> Slab<'a> {
         Some(node)
     }
 
-    fn allocate(&mut self, node_type: &NodeTag) -> Result<u32, IoError> {
+    fn allocate(&mut self, node_type: &NodeTag) -> std::result::Result<u32, IoError> {
         if self.header.free_list_len == 0 {
             if self.header.bump_index as usize == self.capacity() as usize {
                 return Err(std::io::ErrorKind::UnexpectedEof.into());
@@ -463,13 +463,13 @@ impl<'a> Slab<'a> {
         self.header.free_list_len += 1;
     }
 
-    fn insert_node(&mut self, node: &Node) -> Result<u32, IoError> {
+    fn insert_node(&mut self, node: &Node) -> std::result::Result<u32, IoError> {
         let handle = self.allocate(&node.tag())?;
         self.write_node(node, handle);
         Ok(handle)
     }
 
-    pub fn write_callback_info(&mut self, callback_info: &[u8]) -> Result<u64, IoError> {
+    pub fn write_callback_info(&mut self, callback_info: &[u8]) -> std::result::Result<u64, IoError> {
         let h = if self.header.callback_free_list_len > 0 {
             let next_free_spot = u64::from_le_bytes(
                 self.buffer[self.header.callback_free_list_head as usize
@@ -552,7 +552,7 @@ impl<'a> Slab<'a> {
     pub fn insert_leaf(
         &mut self,
         new_leaf_node: &Node,
-    ) -> Result<(NodeHandle, Option<Node>), AoError> {
+    ) -> std::result::Result<(NodeHandle, Option<Node>), AoError> {
         let new_leaf = new_leaf_node.as_leaf().unwrap();
         let mut root: NodeHandle = match self.root() {
             Some(h) => h,
