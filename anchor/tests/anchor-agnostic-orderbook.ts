@@ -85,24 +85,7 @@ describe('anchor-agnostic-orderbook', () => {
     console.log('new ask', ask);
   })
 
-  it('consume events', async () => {
-    const eventQueue = await EventQueue.load(getProvider().connection, eventQueueKeypair.publicKey, 32)
-
-
-    // const eq = await program.account.fetch(eventQueue.publicKey);
-    // for (const event of eq) {
-    //   console.log(event);
-    // }
-    // console.log(eq);
-    // console.log();
-  })
-
   it('new cancel', async () => {
-    const eventQueue = await EventQueue.load(getProvider().connection, eventQueueKeypair.publicKey, 32)
-    const orderSummary = eventQueue.extractRegister(eventQueue.buffer);
-    console.log(orderSummary);
-    const orderId = new BN(orderSummary.slice(1, 18), "le");
-    console.log("order id", orderId.toString())
     const tx = await program.methods
         .cancelOrder(new BN("18446744073709551616003"))
         .accounts({
@@ -116,35 +99,17 @@ describe('anchor-agnostic-orderbook', () => {
     console.log('new cancel', tx);
   })
 
-  // it('consume events', async() => {
-  //   const tx = await program.methods.consume
-  //   const eventQueueAccount = await program.account.eventQueue.fetch(eventQueue.publicKey);
-  //   console.log(eventQueueAccount);
-  // })
-
-  // it('cancel order', async() => {
-  //   const tx = await program.methods
-  //       .cancel_order(
-  //           new BN(1000),
-  //           new BN(1000),
-  //           new BN(1000),
-  //           0,
-  //           "",
-  //           false,
-  //           true,
-  //           1,
-  //           3
-  //       )
-  //       .accounts({
-  //         market: market.publicKey,
-  //         eventQueue: eventQueue.publicKey,
-  //         bids: bids.publicKey,
-  //         asks: asks.publicKey,
-  //         authority: getProvider().wallet.publicKey,
-  //       })
-  //       .rpc()
-  //   console.log('new order', tx);
-  // })
+  it('consume events', async () => {
+    const eventQueue = await EventQueue.load(getProvider().connection, eventQueueKeypair.publicKey, 32)
+    console.log(eventQueue.parseEvent(0));
+    console.log(eventQueue.parseEvent(1));
+    // const eq = await program.account.fetch(eventQueue.publicKey);
+    // for (const event of eq) {
+    //   console.log(event);
+    // }
+    // console.log(eq);
+    // console.log();
+  })
 });
 
 function sleep(ms) {
