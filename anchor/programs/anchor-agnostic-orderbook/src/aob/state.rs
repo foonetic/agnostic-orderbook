@@ -7,18 +7,15 @@ use std::{
 };
 
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::{account_info::AccountInfo, msg};
 use bonfida_utils::BorshSize;
 use borsh::{BorshDeserialize, BorshSerialize};
-use bytemuck::{Pod, try_from_bytes_mut, Zeroable};
+use bytemuck::{try_from_bytes_mut};
 use num_derive::{FromPrimitive, ToPrimitive};
 use num_traits::{FromPrimitive, ToPrimitive};
 
-use anchor_lang::solana_program::{
-    account_info::AccountInfo, entrypoint::ProgramResult, msg, program_error::ProgramError,
-};
-
 use crate::aob::critbit::IoError;
-pub use crate::aob::orderbook::{ORDER_SUMMARY_SIZE, OrderSummary};
+pub use crate::aob::orderbook::{OrderSummary, ORDER_SUMMARY_SIZE};
 #[cfg(feature = "no-entrypoint")]
 pub use crate::utils::get_spread;
 
@@ -126,12 +123,10 @@ pub const MARKET_STATE_LEN: usize = size_of::<MarketState>();
 
 impl MarketState {
     #[allow(missing_docs)]
-    pub fn get<'a, 'b: 'a>(
-        account_info: &'a AccountInfo<'b>,
-    ) -> std::result::Result<RefMut<'a, Self>, ProgramError> {
+    pub fn get<'a, 'b: 'a>(account_info: &'a AccountInfo<'b>) -> Result<RefMut<'a, Self>> {
         let a = Self::get_unchecked(account_info);
         if a.tag != AccountTag::Market as u64 {
-            return Err(ProgramError::InvalidAccountData);
+            return Err(Error::from(ProgramError::InvalidAccountData).with_source(source!()));
         };
         Ok(a)
     }
@@ -276,9 +271,9 @@ impl EventQueueHeader {
         }
     }
 
-    pub fn check(self) -> std::result::Result<Self, ProgramError> {
+    pub fn check(self) -> Result<Self> {
         if self.tag != AccountTag::EventQueue {
-            return Err(ProgramError::InvalidAccountData);
+            return Err(Error::from(ProgramError::InvalidAccountData).with_source(source!()));
         };
         Ok(self)
     }
@@ -341,7 +336,7 @@ impl<'a> EventQueue<'a> {
         let event_size = Event::compute_slot_size(callback_info_len as usize);
         if (account.data_len() - EVENT_QUEUE_HEADER_LEN - REGISTER_SIZE) % event_size != 0 {
             msg!("Event queue buffer size must be a multiple of the event size");
-            return Err(ProgramError::InvalidAccountData.into());
+            return Err(Error::from(ProgramError::InvalidAccountData).with_source(source!()));
         }
         Ok(())
     }
