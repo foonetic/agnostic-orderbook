@@ -1,13 +1,8 @@
-use anchor_lang::solana_program::{
-    account_info::AccountInfo, entrypoint::ProgramResult, program_error::ProgramError,
-};
+use anchor_lang::prelude::*;
 
+use crate::aob::{error::ErrorCode, state::Side};
 #[cfg(feature = "no-entrypoint")]
 use crate::aob::{orderbook::OrderBookState, state::MarketState};
-use crate::aob::{
-    error::{AoError, AoResult},
-    state::Side,
-};
 
 #[allow(dead_code)]
 #[cfg(not(debug_assertions))]
@@ -19,34 +14,30 @@ unsafe fn invariant(check: bool) {
 }
 
 // Safety verification functions
-pub fn check_account_key(account: &AccountInfo, key: &[u8], error: AoError) -> Result<(), AoError> {
+pub fn check_account_key(account: &AccountInfo, key: &[u8], error: ErrorCode) -> Result<()> {
     if account.key.to_bytes() != key {
-        return Err(error);
+        return Err(error!(error));
     }
     Ok(())
 }
 
-pub fn check_account_owner(
-    account: &AccountInfo,
-    owner: &[u8],
-    error: AoError,
-) -> Result<(), AoError> {
+pub fn check_account_owner(account: &AccountInfo, owner: &[u8], error: ErrorCode) -> Result<()> {
     if account.owner.to_bytes() != owner {
-        return Err(error);
+        return Err(error!(error));
     }
     Ok(())
 }
 
-pub fn check_signer(account: &AccountInfo) -> ProgramResult {
+pub fn check_signer(account: &AccountInfo) -> Result<()> {
     if !(account.is_signer) {
-        return Err(ProgramError::MissingRequiredSignature);
+        return Err(Error::from(ProgramError::MissingRequiredSignature).with_source(source!()));
     }
     Ok(())
 }
 
-pub fn check_unitialized(account: &AccountInfo) -> AoResult {
+pub fn check_unitialized(account: &AccountInfo) -> Result<()> {
     if account.data.borrow()[0] != 0 {
-        return Err(AoError::AlreadyInitialized);
+        return err!(ErrorCode::AlreadyInitialized);
     }
     Ok(())
 }
