@@ -17,7 +17,7 @@ use num_traits::{FromPrimitive, ToPrimitive};
 use crate::aob::critbit::IoError;
 pub use crate::aob::orderbook::{OrderSummary, ORDER_SUMMARY_SIZE};
 #[cfg(feature = "no-entrypoint")]
-pub use crate::utils::get_spread;
+pub use crate::aob::utils::get_spread;
 
 #[derive(BorshDeserialize, BorshSerialize, Copy, Clone, Debug, PartialEq)]
 #[allow(missing_docs)]
