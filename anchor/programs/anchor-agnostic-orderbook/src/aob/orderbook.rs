@@ -1,14 +1,12 @@
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::{account_info::AccountInfo, msg};
-
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use crate::aob::error::AoResult;
 use crate::aob::params::NewOrderParams;
 use crate::aob::state::AccountTag;
 use crate::aob::{
     critbit::{LeafNode, Node, NodeHandle, Slab},
-    error::AoError,
+    error::ErrorCode,
     state::{Event, EventQueue, SelfTradeBehavior, Side},
     utils::{fp32_div, fp32_mul},
 };
@@ -88,7 +86,7 @@ impl<'a> OrderBookState<'a> {
         asks_account: &AccountInfo<'a>,
         callback_info_len: usize,
         callback_id_len: usize,
-    ) -> AoResult<Self> {
+    ) -> Result<Self> {
         let bids = Slab::new(bids_account.data.take(), callback_info_len)?;
         bids.check_account_tag(AccountTag::Bids)?;
         let asks = Slab::new(asks_account.data.take(), callback_info_len)?;
@@ -144,7 +142,7 @@ impl<'a> OrderBookState<'a> {
         params: NewOrderParams,
         event_queue: &mut EventQueue,
         min_base_order_size: u64,
-    ) -> AoResult<OrderSummary> {
+    ) -> Result<OrderSummary> {
         let NewOrderParams {
             max_base_qty,
             max_quote_qty,
@@ -225,7 +223,9 @@ impl<'a> OrderBookState<'a> {
                             cancelled_provide_base_qty =
                                 std::cmp::min(base_qty_remaining, best_bo_ref.base_quantity);
                         }
-                        SelfTradeBehavior::AbortTransaction => return Err(AoError::WouldSelfTrade),
+                        SelfTradeBehavior::AbortTransaction => {
+                            return Err(error!(ErrorCode::WouldSelfTrade))
+                        }
                         SelfTradeBehavior::DecrementTake => unreachable!(),
                     };
 
@@ -244,7 +244,7 @@ impl<'a> OrderBookState<'a> {
                     };
                     event_queue
                         .push_back(provide_out)
-                        .map_err(|_| AoError::EventQueueFull)?;
+                        .map_err(|_| ErrorCode::EventQueueFull)?;
                     if delete {
                         self.get_tree(side.opposite())
                             .remove_by_key(best_offer_id)
@@ -272,7 +272,7 @@ impl<'a> OrderBookState<'a> {
             };
             event_queue
                 .push_back(maker_fill)
-                .map_err(|_| AoError::EventQueueFull)?;
+                .map_err(|_| ErrorCode::EventQueueFull)?;
 
             best_bo_ref.set_base_quantity(best_bo_ref.base_quantity - base_trade_qty);
             base_qty_remaining -= base_trade_qty;
@@ -297,7 +297,7 @@ impl<'a> OrderBookState<'a> {
                     .unwrap();
                 event_queue
                     .push_back(out_event)
-                    .map_err(|_| AoError::EventQueueFull)?;
+                    .map_err(|_| ErrorCode::EventQueueFull)?;
             } else {
                 self.get_tree(side.opposite())
                     .write_node(&Node::Leaf(best_bo_ref), best_bo_h);
@@ -331,7 +331,7 @@ impl<'a> OrderBookState<'a> {
             base_quantity: base_qty_to_post,
         });
         let insert_result = self.get_tree(side).insert_leaf(&new_leaf);
-        if let Err(AoError::SlabOutOfSpace) = insert_result {
+        if let Err(ErrorCode::SlabOutOfSpace) = insert_result {
             // Boot out the least aggressive orders
             msg!("Orderbook is full! booting lest aggressive orders...");
             let order = match side {
@@ -351,7 +351,7 @@ impl<'a> OrderBookState<'a> {
             };
             event_queue
                 .push_back(out)
-                .map_err(|_| AoError::EventQueueFull)?;
+                .map_err(|_| ErrorCode::EventQueueFull)?;
             self.get_tree(side).insert_leaf(&new_leaf).unwrap();
         } else {
             insert_result.unwrap();

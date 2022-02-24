@@ -5,11 +5,11 @@ use anchor_lang::prelude::*;
 use anchor_lang::solana_program::account_info::AccountInfo;
 use anchor_lang::solana_program::pubkey::Pubkey;
 use borsh::{BorshDeserialize, BorshSerialize};
-use bytemuck::{Pod, try_from_bytes, try_from_bytes_mut, Zeroable};
+use bytemuck::{try_from_bytes, try_from_bytes_mut, Pod, Zeroable};
 use num_derive::FromPrimitive;
 use num_traits::FromPrimitive;
 
-use crate::aob::error::{AoError, AoResult};
+use crate::aob::error::ErrorCode;
 use crate::aob::state::AccountTag;
 
 // A Slab contains the data for a slab header and an array of nodes of a critbit tree
@@ -135,7 +135,7 @@ impl<'a> NodeRef<'a> {
     }
 
     #[cfg(any(test, feature = "utils"))]
-    fn prefix_len(&self) -> Result<u64, IoError> {
+    fn prefix_len(&self) -> std::io::Result<u64> {
         match &self {
             Self::Inner(i) => Ok(i.prefix_len),
             Self::Leaf(_) => Ok(128),
@@ -206,16 +206,16 @@ impl<'a> Slab<'a> {
         account.data.replace(self.buffer);
     }
 
-    pub fn check_account_tag(&self, account_tag: AccountTag) -> AoResult<()> {
+    pub fn check_account_tag(&self, account_tag: AccountTag) -> Result<()> {
         if self.header.account_tag != account_tag {
-            return Err(AoError::WrongAccountTag);
+            return Err(error!(ErrorCode::WrongAccountTag));
         }
         Ok(())
     }
 
-    pub fn new(buffer: &'a mut [u8], callback_info_len: usize) -> AoResult<Self> {
+    pub fn new(buffer: &'a mut [u8], callback_info_len: usize) -> Result<Self> {
         let header = SlabHeader::deserialize(&mut (buffer as &[u8]))
-            .map_err(|_| AoError::FailedToDeserialize)?;
+            .map_err(|_| ErrorCode::FailedToDeserialize)?;
         let slab = Self {
             header,
             buffer,
@@ -470,7 +470,10 @@ impl<'a> Slab<'a> {
         Ok(handle)
     }
 
-    pub fn write_callback_info(&mut self, callback_info: &[u8]) -> std::result::Result<u64, IoError> {
+    pub fn write_callback_info(
+        &mut self,
+        callback_info: &[u8],
+    ) -> std::result::Result<u64, IoError> {
         let h = if self.header.callback_free_list_len > 0 {
             let next_free_spot = u64::from_le_bytes(
                 self.buffer[self.header.callback_free_list_head as usize
@@ -553,7 +556,7 @@ impl<'a> Slab<'a> {
     pub fn insert_leaf(
         &mut self,
         new_leaf_node: &Node,
-    ) -> std::result::Result<(NodeHandle, Option<Node>), AoError> {
+    ) -> std::result::Result<(NodeHandle, Option<Node>), ErrorCode> {
         let new_leaf = new_leaf_node.as_leaf().unwrap();
         let mut root: NodeHandle = match self.root() {
             Some(h) => h,
@@ -561,7 +564,7 @@ impl<'a> Slab<'a> {
                 // create a new root if none exists
                 let new_leaf_key = self
                     .insert_node(new_leaf_node)
-                    .map_err(|_| AoError::SlabOutOfSpace)?;
+                    .map_err(|_| ErrorCode::SlabOutOfSpace)?;
                 self.header.root_node = new_leaf_key;
                 self.header.leaf_count += 1;
                 return Ok((new_leaf_key, None));
@@ -605,11 +608,11 @@ impl<'a> Slab<'a> {
             // Write new leaf to slab
             let new_leaf_handle = self
                 .insert_node(new_leaf_node)
-                .map_err(|_| AoError::SlabOutOfSpace)?;
+                .map_err(|_| ErrorCode::SlabOutOfSpace)?;
 
             let new_root_node_handle = self
                 .allocate(&NodeTag::Inner)
-                .map_err(|_| AoError::SlabOutOfSpace)?;
+                .map_err(|_| ErrorCode::SlabOutOfSpace)?;
 
             if let NodeRefMut::Inner(mut i) = self.get_node_mut(new_root_node_handle).unwrap() {
                 i.prefix_len = shared_prefix_len as u64;
@@ -757,7 +760,7 @@ impl<'a> Slab<'a> {
             match n {
                 Node::Leaf(ref l) => {
                     let callback_info =
-                        S::from_bytes(&slab.get_callback_info(l.callback_info_pt as usize));
+                        S::from_bytes(slab.get_callback_info(l.callback_info_pt as usize));
                     buf.push((n, callback_info));
                 }
                 Node::Inner(inner) => {
@@ -918,7 +921,7 @@ mod tests {
 
     use super::*;
 
-// #[test]
+    // #[test]
     // fn test_node_serialization() {
     //     let mut rng = StdRng::seed_from_u64(42);
     //     let mut bytes = [0u8; 100];
@@ -1000,7 +1003,7 @@ mod tests {
                         .map(|s| {
                             (
                                 s.to_owned(),
-                                Pubkey::new(&slab.get_callback_info(
+                                Pubkey::new(slab.get_callback_info(
                                     s.as_leaf().unwrap().callback_info_pt as usize,
                                 )),
                             )
@@ -1013,7 +1016,7 @@ mod tests {
                 let slab_min = slab.get_node(slab.find_min().unwrap()).unwrap().to_owned();
                 let model_min = model.iter().next().unwrap().1;
                 let owner = Pubkey::new(
-                    &slab.get_callback_info(slab_min.as_leaf().unwrap().callback_info_pt as usize),
+                    slab.get_callback_info(slab_min.as_leaf().unwrap().callback_info_pt as usize),
                 );
                 assert_eq!(&(slab_min, owner), model_min);
 
@@ -1021,7 +1024,7 @@ mod tests {
                 let slab_max = slab.get_node(slab.find_max().unwrap()).unwrap().to_owned();
                 let model_max = model.iter().next_back().unwrap().1;
                 let owner = Pubkey::new(
-                    &slab.get_callback_info(slab_max.as_leaf().unwrap().callback_info_pt as usize),
+                    slab.get_callback_info(slab_max.as_leaf().unwrap().callback_info_pt as usize),
                 );
                 assert_eq!(&(slab_max, owner), model_max);
             }
@@ -1120,7 +1123,7 @@ mod tests {
                             .insert_leaf(&leaf)
                             .map(|(_, n)| {
                                 n.map(|node| {
-                                    let owner = Pubkey::new(&slab.get_callback_info(
+                                    let owner = Pubkey::new(slab.get_callback_info(
                                         node.as_leaf().unwrap().callback_info_pt as usize,
                                     ));
                                     (node, owner)
@@ -1151,7 +1154,7 @@ mod tests {
                         } else {
                             let slab_min =
                                 slab.get_node(slab.find_min().unwrap()).unwrap().to_owned();
-                            let owner = Pubkey::new(&slab.get_callback_info(
+                            let owner = Pubkey::new(slab.get_callback_info(
                                 slab_min.as_leaf().unwrap().callback_info_pt as usize,
                             ));
                             let model_min = model.iter().next().unwrap().1;
@@ -1164,7 +1167,7 @@ mod tests {
                         } else {
                             let slab_max =
                                 slab.get_node(slab.find_max().unwrap()).unwrap().to_owned();
-                            let owner = Pubkey::new(&slab.get_callback_info(
+                            let owner = Pubkey::new(slab.get_callback_info(
                                 slab_max.as_leaf().unwrap().callback_info_pt as usize,
                             ));
                             let model_max = model.iter().next_back().unwrap().1;

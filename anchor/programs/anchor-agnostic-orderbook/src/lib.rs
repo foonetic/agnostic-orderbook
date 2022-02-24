@@ -1,21 +1,21 @@
-use std::io::Write;
-use std::ops::{Deref, DerefMut};
-use std::str::FromStr;
+
+use std::ops::{DerefMut};
+
 
 use anchor_lang::prelude::*;
 use anchor_lang::solana_program::log::sol_log_compute_units;
 use borsh::BorshDeserialize;
 use borsh::BorshSerialize;
-use bytemuck::{try_from_bytes, try_from_bytes_mut};
+
 use num_traits::FromPrimitive;
 
 use crate::aob::critbit::Slab;
-use crate::aob::error::AoError;
+use crate::aob::error::ErrorCode;
 use crate::aob::orderbook::OrderBookState;
 use crate::aob::orderbook::OrderSummary;
 use crate::aob::params::NewOrderParams;
 use crate::aob::state::get_side_from_order_id;
-use crate::aob::state::{AccountTag, EventQueueHeader, MarketState, MARKET_STATE_LEN};
+use crate::aob::state::{AccountTag, EventQueueHeader, MarketState};
 use crate::aob::state::{EventQueue, EVENT_QUEUE_HEADER_LEN};
 use crate::aob::state::{SelfTradeBehavior, Side};
 use crate::aob::utils::fp32_mul;
@@ -83,9 +83,9 @@ pub mod anchor_agnostic_orderbook {
         self_trade_behavior: u8,
     ) -> Result<()> {
         let market_state = &mut ctx.accounts.market.load_mut()?;
-        let side = Side::from_u8(side).ok_or(AoError::FailedToDeserialize)?;
-        let self_trade_behavior =
-            SelfTradeBehavior::from_u8(self_trade_behavior).ok_or(AoError::FailedToDeserialize)?;
+        let side = Side::from_u8(side).ok_or(ErrorCode::FailedToDeserialize)?;
+        let self_trade_behavior = SelfTradeBehavior::from_u8(self_trade_behavior)
+            .ok_or(ErrorCode::FailedToDeserialize)?;
         let limit_price = round_price(market_state.tick_size, limit_price, side);
         let callback_info_len = market_state.callback_info_len as usize;
 
@@ -101,7 +101,7 @@ pub mod anchor_agnostic_orderbook {
 
         if callback_info.len() != market_state.callback_info_len as usize {
             msg!("Invalid callback information");
-            return Err(ProgramError::InvalidArgument.into());
+            return Err(Error::from(ProgramError::InvalidArgument).with_source(source!()));
         }
 
         msg!("New Order: Creating event queue");
@@ -158,7 +158,7 @@ pub mod anchor_agnostic_orderbook {
                 .unwrap()
         {
             msg!("Fees were not correctly payed during caller runtime.");
-            return Err(AoError::FeeNotPayed.into());
+            return err!(ErrorCode::FeeNotPayed);
         }
         market_state.fee_budget =
             ctx.accounts.market.to_account_info().lamports() - market_state.initial_lamports;
@@ -187,7 +187,9 @@ pub mod anchor_agnostic_orderbook {
             EventQueue::new_safe(header, &ctx.accounts.event_queue, callback_info_len)?;
 
         let slab = order_book.get_tree(get_side_from_order_id(order_id));
-        let node = slab.remove_by_key(order_id).ok_or(AoError::OrderNotFound)?;
+        let node = slab
+            .remove_by_key(order_id)
+            .ok_or(ErrorCode::OrderNotFound)?;
         let leaf_node = node.as_leaf().unwrap();
         let total_base_qty = leaf_node.base_quantity;
         let total_quote_qty = fp32_mul(leaf_node.base_quantity, leaf_node.price());
@@ -229,7 +231,7 @@ pub mod anchor_agnostic_orderbook {
             std::cmp::min(event_queue.header.count, number_of_entries_to_consume);
         let reward = (market_state.fee_budget * capped_number_of_entries_consumed)
             .checked_div(event_queue.header.count)
-            .ok_or(AoError::NoOperations)
+            .ok_or(ErrorCode::NoOperations)
             .unwrap();
         market_state.fee_budget -= reward;
         let market_account = ctx.accounts.market.to_account_info();
@@ -263,7 +265,7 @@ pub mod anchor_agnostic_orderbook {
         .unwrap();
         if !orderbook_state.is_empty() {
             msg!("The orderbook must be empty");
-            return Err(AoError::MarketStillActive.into());
+            return err!(ErrorCode::MarketStillActive);
         }
 
         // Check if all events have been processed
@@ -274,7 +276,7 @@ pub mod anchor_agnostic_orderbook {
         };
         if header.count != 0 {
             msg!("The event queue needs to be empty");
-            return Err(AoError::MarketStillActive.into());
+            return err!(ErrorCode::MarketStillActive);
         }
 
         market_state.tag = AccountTag::Uninitialized as u64;
