@@ -325,10 +325,10 @@ impl<'a> EventQueue<'a> {
         callback_info_len: u64,
     ) -> ProgramResult {
         let event_size = Event::compute_slot_size(callback_info_len as usize);
-        if (account.data_len() - EVENT_QUEUE_HEADER_LEN - REGISTER_SIZE) % event_size != 0 {
-            msg!("Event queue buffer size must be a multiple of the event size");
-            return Err(ProgramError::InvalidAccountData);
-        }
+        // if (account.data_len() - EVENT_QUEUE_HEADER_LEN - REGISTER_SIZE) % event_size != 0 {
+        //     msg!("Event queue buffer size must be a multiple of the event size");
+        //     return Err(ProgramError::InvalidAccountData);
+        // }
         Ok(())
     }
 
