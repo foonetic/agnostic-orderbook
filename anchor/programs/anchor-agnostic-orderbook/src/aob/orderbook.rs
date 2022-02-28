@@ -200,6 +200,12 @@ impl<'a> OrderBookState<'a> {
                 break;
             }
 
+            let quote_maker_qty = fp32_mul(base_trade_qty, trade_price);
+
+            if quote_maker_qty == 0 {
+                break;
+            }
+
             // The decrement take case can be handled by the caller program on event consumption, so no special logic
             // is needed for it.
             if self_trade_behavior != SelfTradeBehavior::DecrementTake {
@@ -252,8 +258,6 @@ impl<'a> OrderBookState<'a> {
                     continue;
                 }
             }
-
-            let quote_maker_qty = fp32_mul(base_trade_qty, trade_price);
 
             let maker_fill = Event::Fill {
                 taker_side: side,
