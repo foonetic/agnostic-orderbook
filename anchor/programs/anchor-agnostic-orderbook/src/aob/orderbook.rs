@@ -340,7 +340,7 @@ impl<'a> OrderBookState<'a> {
             };
             let l = order.as_leaf().unwrap();
             let out = Event::Out {
-                side: Side::Bid,
+                side,
                 delete: true,
                 order_id: l.order_id(),
                 base_size: l.base_quantity,
